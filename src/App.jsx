@@ -60,14 +60,9 @@ function loadNight() {
   }
 }
 
+/** The Chowdex clam, turned on its side so its open edge reads as a "C". Art: public/logo.png. */
 function Logo() {
-  return (
-    <svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true">
-      <rect x="1" y="1" width="30" height="30" rx="9" style={{ fill: 'var(--accent)' }} stroke="#111" strokeWidth="2" />
-      <path d="M21 11.6a6.4 6.4 0 1 0 0 8.8" fill="none" stroke="#111" strokeWidth="3.2" strokeLinecap="round" />
-      <circle cx="23.4" cy="16" r="2.4" fill="#ce2634" stroke="#111" strokeWidth="1.4" />
-    </svg>
-  );
+  return <img className="brand-logo" src="/logo.png" alt="" width="40" height="40" draggable="false" />;
 }
 
 export default function App() {

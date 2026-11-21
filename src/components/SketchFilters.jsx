@@ -18,6 +18,13 @@ export default function SketchFilters() {
             <feDisplacementMap in="SourceGraphic" in2="noise" scale="3.2" xChannelSelector="R" yChannelSelector="G" />
           </filter>
         ))}
+        {/* A gentler set for small art (the logo): finer noise and a smaller nudge. */}
+        {Array.from({ length: BOIL_FRAMES }, (_, i) => (
+          <filter key={i} id={`boil-sm-${i}`} x="-8%" y="-8%" width="116%" height="116%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.09" numOctaves="2" seed={i * 5 + 2} result="noise" />
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.8" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+        ))}
       </defs>
     </svg>
   );
