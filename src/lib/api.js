@@ -8,6 +8,7 @@
  * Changing a function name or return shape here affects everyone: tell the team first.
  */
 import mockPlaces from './mock/places.json';
+import mbta from './mock/mbta.json';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
 
@@ -89,9 +90,58 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
  * @property {{south:number, west:number, north:number, east:number}} [bounds]
  */
 
+/**
+ * @typedef {Object} Station
+ * @property {string}   id      MBTA stop id, e.g. "place-chncl"
+ * @property {string}   name
+ * @property {number}   lat
+ * @property {number}   lng
+ * @property {string[]} lines   e.g. ["Orange", "Red"]
+ */
+
+/**
+ * @typedef {Object} Line
+ * @property {string}        id            "Red" | "Orange" | "Blue" | "Green"
+ * @property {string}        name          e.g. "Red Line"
+ * @property {string}        color         hex, the official line color
+ * @property {string[]}      station_ids
+ * @property {number[][][]}  shapes        polylines as [lng, lat] pairs, ready for GeoJSON
+ */
+
+/**
+ * @typedef {Object} LineProgress
+ * @property {string} id
+ * @property {string} name
+ * @property {string} color
+ * @property {number} stamped
+ * @property {number} total
+ * @property {number} percent   0 to 100, rounded down
+ * @property {'none'|'bronze'|'silver'|'gold'} tier
+ */
+
+/**
+ * @typedef {Object} StampSummary
+ * @property {Object<string, string[]>} by_station   station id -> ids of the dex places that stamped it;
+ *                                                    only stamped stations appear
+ * @property {LineProgress[]} lines
+ * @property {number} stamped_total                  unique stations stamped
+ * @property {number} station_total
+ */
+
 /* ---------------------------------------------------------------------------
  * Shared game rules (the real backend trigger must use the same numbers)
  * ------------------------------------------------------------------------- */
+
+/** A station is stamped when any of the user's dex places is within this many meters of it. */
+export const STAMP_RADIUS_M = 400;
+
+/** Line badge tiers by percent of the line's stations stamped. */
+export function tierFromPercent(percent) {
+  if (percent >= 100) return 'gold';
+  if (percent >= 50) return 'silver';
+  if (percent >= 25) return 'bronze';
+  return 'none';
+}
 
 export const XP_PER_ENTRY = 10;
 export const XP_PHOTO_BONUS = 5;
@@ -164,6 +214,18 @@ function isSignedIn() {
   return readStore(SIGNED_IN_KEY, false) === true;
 }
 
+/** Great-circle distance in meters (haversine). */
+function distanceM(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const rad = Math.PI / 180;
+  const dLat = (lat2 - lat1) * rad;
+  const dLng = (lng2 - lng1) * rad;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
 const mockApi = {
   /** @param {PlaceFilters} [filters] @returns {Promise<Place[]>} */
   async getPlaces(filters = {}) {
@@ -199,10 +261,10 @@ const mockApi = {
   /** @param {string} stopId @returns {Promise<Arrival[]>} */
   async getArrivals(stopId) {
     await delay();
-    const match = mockPlaces.find((p) => p.nearest_stop.id === stopId);
-    if (!match) return [];
+    const station = mbta.stations.find((s) => s.id === stopId);
+    if (!station) return [];
     const arrivals = [];
-    match.nearest_stop.lines.forEach((lineName, i) => {
+    station.lines.forEach((lineName, i) => {
       (MOCK_DIRECTIONS[lineName] || []).forEach((direction, j) => {
         arrivals.push({
           route: `${lineName} Line`,
@@ -212,6 +274,53 @@ const mockApi = {
       });
     });
     return arrivals.sort((a, b) => a.minutes - b.minutes);
+  },
+
+  /** @returns {Promise<Line[]>} the four subway lines with colors and map shapes */
+  async getRoutes() {
+    await delay();
+    return mbta.lines;
+  },
+
+  /** @returns {Promise<Station[]>} every subway station */
+  async getStations() {
+    await delay();
+    return mbta.stations;
+  },
+
+  /**
+   * Station stamps: a station is stamped when a place in the user's dex is within
+   * STAMP_RADIUS_M of it. Derived from the dex, nothing extra is stored.
+   * @returns {Promise<StampSummary>} all zeros when signed out
+   */
+  async getStamps() {
+    await delay();
+    const dex = isSignedIn() ? readStore(DEX_KEY, []) : [];
+    const dexPlaces = dex
+      .map((e) => mockPlaces.find((p) => p.id === e.place_id))
+      .filter(Boolean);
+
+    const by_station = {};
+    for (const st of mbta.stations) {
+      const hits = dexPlaces
+        .filter((p) => distanceM(p.lat, p.lng, st.lat, st.lng) <= STAMP_RADIUS_M)
+        .map((p) => p.id);
+      if (hits.length) by_station[st.id] = hits;
+    }
+
+    const lines = mbta.lines.map((l) => {
+      const total = l.station_ids.length;
+      const stamped = l.station_ids.filter((id) => by_station[id]).length;
+      const percent = total ? Math.floor((100 * stamped) / total) : 0;
+      return { id: l.id, name: l.name, color: l.color, stamped, total, percent, tier: tierFromPercent(percent) };
+    });
+
+    return {
+      by_station,
+      lines,
+      stamped_total: Object.keys(by_station).length,
+      station_total: mbta.stations.length,
+    };
   },
 
   /** @returns {Promise<DexEntry[]>} empty array when signed out */
@@ -281,6 +390,38 @@ const mockApi = {
     await delay(50);
     writeStore(SIGNED_IN_KEY, false);
   },
+
+  /** Mock only: signs in and fills the dex with a few places so the UI has something to show. */
+  async loadDemoData() {
+    await delay();
+    const demo = [
+      ['mock-001', 'Beef pho', 5],
+      ['mock-004', 'Lobster roll', 5],
+      ['mock-008', 'Chickpea fritter pita', 4],
+      ['mock-009', 'Pastrami sandwich', 5],
+      ['mock-011', 'Shakshuka', 4],
+      ['mock-012', 'Tasty burger', 4],
+    ];
+    writeStore(SIGNED_IN_KEY, true);
+    writeStore(
+      DEX_KEY,
+      demo.map(([place_id, favorite_dish, my_rating], i) => ({
+        id: `dex-demo-${i}`,
+        place_id,
+        favorite_dish,
+        my_rating,
+        photo_url: null,
+        visited_at: new Date(Date.now() - i * 86400000).toISOString(),
+      })),
+    );
+  },
+
+  /** Mock only: clears the dex and signs out. */
+  async resetDemoData() {
+    await delay(50);
+    writeStore(DEX_KEY, []);
+    writeStore(SIGNED_IN_KEY, false);
+  },
 };
 
 /* ---------------------------------------------------------------------------
@@ -305,10 +446,15 @@ export const {
   getPlaces,
   getPlace,
   getArrivals,
+  getRoutes,
+  getStations,
+  getStamps,
   getDex,
   addToDex,
   getProfile,
   getCurrentUser,
   signInWithGoogle,
   signOut,
+  loadDemoData,
+  resetDemoData,
 } = impl;

@@ -8,6 +8,20 @@ A web app for Boston college students to discover food spots and things to do by
 - Backend: Supabase (Postgres + PostGIS, Auth with Google sign-in, Storage, Edge Functions)
 - Data: OpenStreetMap (Overpass), MBTA V3 API, Google Places
 
+## Run it locally
+
+You need Node.js (LTS).
+
+```
+npm install
+cp .env.example .env     # then fill in VITE_MAPTILER_KEY (free key from maptiler.com)
+npm run dev              # http://localhost:5173
+```
+
+The app runs on mock data by default (`VITE_USE_MOCK=true`), so no backend is needed. Use "Load demo data" in the header to fill the dex. `npm run fetch:mbta` refreshes `src/lib/mock/mbta.json` from the MBTA API.
+
+Restrict your MapTiler key to your allowed origins in the MapTiler dashboard. `.env` is gitignored and must never be committed.
+
 ## Folder ownership
 
 | Path | Owner | Contents |
@@ -17,7 +31,7 @@ A web app for Boston college students to discover food spots and things to do by
 | `scripts/` | Backend | Seed scripts (restaurants, MBTA stops) |
 | `src/lib/` | Backend (shared contract) | `api.js` data layer, Supabase client, mock data |
 | `src/features/map/`, `src/features/place/` | Map and place card | Map view, filters, place details |
-| `src/features/dex/`, `src/features/pet/` | Dex and pet | Dex UI, check-in, pet XP and levels |
+| `src/features/dex/`, `src/features/pet/`, `src/features/stamps/` | Dex and pet | Dex UI, check-in, pet XP and levels, station stamps and line badges |
 | `src/styles/` | Dex and pet | Theme and shared styles |
 | `docs/` | Everyone | Schema and notes |
 
