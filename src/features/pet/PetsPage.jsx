@@ -2,11 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { getNeighborhoodProgress, getPets } from '../../lib/api.js';
 import { XpBar } from '../../components/ui.jsx';
 import PetCard from './PetCard.jsx';
+import BadgeGallery from './BadgeGallery.jsx';
 
 const FILTERS = [
   { id: 'all', label: 'All' },
   { id: 'mine', label: 'With you' },
   { id: 'locked', label: 'Undiscovered' },
+  { id: 'badges', label: 'Badges' },
 ];
 
 /** Starter color when a pet has no neighborhood. */
@@ -54,7 +56,6 @@ export default function PetsPage({ version, signedIn, onOpenPet }) {
 
   const mine = sorted.filter((p) => p.unlocked);
   const shown = filter === 'mine' ? mine : filter === 'locked' ? sorted.filter((p) => !p.unlocked) : sorted;
-
   return (
     <div className="page paper">
       <div className="page-inner rise">
@@ -86,12 +87,18 @@ export default function PetsPage({ version, signedIn, onOpenPet }) {
           ))}
         </div>
 
-        <div className="pet-grid">
-          {shown.map((pet) => (
-            <PetCard key={pet.id} pet={pet} tint={data.tints[pet.id] ?? STARTER_TINT} onOpen={onOpenPet} />
-          ))}
-        </div>
-        {shown.length === 0 && <p className="muted empty">Nothing here yet.</p>}
+        {filter === 'badges' ? (
+          <BadgeGallery version={version} onOpenPet={onOpenPet} />
+        ) : (
+          <>
+            <div className="pet-grid">
+              {shown.map((pet) => (
+                <PetCard key={pet.id} pet={pet} tint={data.tints[pet.id] ?? STARTER_TINT} onOpen={onOpenPet} />
+              ))}
+            </div>
+            {shown.length === 0 && <p className="muted empty">Nothing here yet.</p>}
+          </>
+        )}
       </div>
     </div>
   );

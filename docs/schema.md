@@ -142,8 +142,10 @@ See the JSDoc typedefs at the top of `src/lib/api.js` for `DexEntry`, `Profile`,
 | `getVehicles({simulate})` | `VehicleSnapshot` | live subway trains from the MBTA `/vehicles` feed, only those on the drawn lines. `vehicles` is `null` with `error: true` when the feed is unreachable; `simulate: true` returns made-up, sped-up trains for demos |
 | `getStamps()` | `StampSummary` | station stamps and per-line progress, all zeros when signed out |
 | `getDex()` | `DexEntry[]` | `[]` when signed out |
-| `addToDex(placeId, {favoriteDish, myRating, note, photo})` | `DexEntry` | logs a meal (this is the feeding). Throws `NOT_SIGNED_IN`, `NOT_FOUND`, or `ALREADY_IN_DEX`. The result also says what the meal did: `fed`, `xp_gained`, `unlocked_pet`, `level_ups`, `new_badges` |
+| `addToDex(placeId, {favoriteDish, myRating, note, photo})` | `DexEntry` | logs a meal (this is the feeding); no location check. Throws `NOT_SIGNED_IN`, `NOT_FOUND`, or `ALREADY_IN_DEX`. The result also says what the meal did: `fed`, `xp_gained`, `unlocked_pet`, `level_ups`, `new_badges` |
 | `updateDexEntry(entryId, {favoriteDish, myRating, note, photo})` | `DexEntry` | edit a journal entry later; `null` clears a field. Throws `NOT_SIGNED_IN`, `NOT_FOUND`, or `INVALID` (rating not 1 to 5) |
+| `deleteDexEntry(entryId)` | nothing | removes an entry; its XP, badges, history, and an unlocked pet whose only meal it was are recalculated away. Throws `NOT_SIGNED_IN` or `NOT_FOUND` |
+| `getActivity({limit})` | `PetHistoryEvent[]` | recent happenings across all pets in one call, newest first (the Home feed); filter by `pet_id` for one pet |
 | `getFeedingStatus()` | `FeedingStatus` | `meals_today`, `fed_today`, `remaining`, `full` (Boston time) |
 | `getPets()` | `Pet[]` | all 25 pets with `unlocked`, `entries`, `xp`, `level`, `max_level`, `next_level_xp`, `badges`, `nickname`, `display_name`, and `active`. Signed out: only the starter is unlocked |
 | `setActivePet(petId)` | `Pet` | throws `NOT_SIGNED_IN`, `NOT_FOUND`, or `NOT_UNLOCKED` |
@@ -171,6 +173,8 @@ The mock logic is `src/lib/mock/petEngine.js`, a pure function of the dex. The r
 - **Daily limit: only the first 2 meals per day (Boston time) feed the pets** (`DAILY_FEED_LIMIT`). A third meal is still logged in the journal, can unlock a pet and count toward badges, but gives no XP. So visiting 20 places in a day is worth the same as 2.
 - **Levels are quick and capped at 5.** Cumulative XP for levels 1 to 5 is `10, 20, 40, 60, 90` (`PET_LEVEL_XP`), so a pet is fully grown after about 9 meals in its area. `next_level_xp` is `null` at the max.
 - A place can only be logged once, so revisiting the same spot can't farm XP.
+- **Explorer level vs pet levels.** The explorer (trainer) level is an uncapped track from `levelFromXp()` / `xpForLevel()`; pet levels are the capped 1 to 5 above. Both use the same fed XP, so they can differ at the same XP.
+- Deleting a journal entry takes its progress with it (everything is derived), so there is no way to keep XP from a meal you removed.
 
 ### 2. Badges
 

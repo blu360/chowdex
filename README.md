@@ -20,7 +20,7 @@ cp .env.example .env     # then fill in VITE_MAPTILER_KEY (free key from maptile
 npm run dev              # http://localhost:5173
 ```
 
-The app runs on mock data by default (`VITE_USE_MOCK=true`), so no backend is needed. Use "Load demo data" in the header to fill the dex. `npm run fetch:mbta` refreshes `src/lib/mock/mbta.json` from the MBTA API (Boston and Cambridge stations only). `npm run build:neighborhoods` rebuilds `src/lib/mock/neighborhoods.json`, the 24 colored neighborhood areas.
+The app runs on mock data by default (`VITE_USE_MOCK=true`), so no backend is needed. Use "Load demo data" in the account menu (top right) to fill the dex. `npm run fetch:mbta` refreshes `src/lib/mock/mbta.json` from the MBTA API (Boston and Cambridge stations only). `npm run build:neighborhoods` rebuilds `src/lib/mock/neighborhoods.json`, the 24 colored neighborhood areas.
 
 Keys:
 

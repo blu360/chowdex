@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { getPlace, getDex, addToDex, getStamps, getStations } from '../../lib/api.js';
+import { getPlace, getDex, addToDex, getFeedingStatus, getStamps, getStations } from '../../lib/api.js';
 import { LINE_COLORS } from '../../lib/lines.js';
+import { shrinkPhoto } from '../../lib/image.js';
 
 export function LineChips({ lines }) {
   return (
@@ -22,6 +23,7 @@ export default function PlaceCard({ placeId, signedIn, onClose, onDexChange, onS
   const [photo, setPhoto] = useState(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState(null);
+  const [feeding, setFeeding] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -31,11 +33,12 @@ export default function PlaceCard({ placeId, signedIn, onClose, onDexChange, onS
     setRating(0);
     setNote('');
     setPhoto(null);
-    Promise.all([getPlace(placeId), getDex()])
-      .then(([p, dex]) => {
+    Promise.all([getPlace(placeId), getDex(), getFeedingStatus()])
+      .then(([p, dex, status]) => {
         if (cancelled) return;
         setPlace(p);
         setCollected(dex.some((e) => e.place_id === placeId));
+        setFeeding(status);
         setStatus('ready');
       })
       .catch(() => !cancelled && setStatus('error'));
@@ -50,21 +53,17 @@ export default function PlaceCard({ placeId, signedIn, onClose, onDexChange, onS
     setMessage(null);
     try {
       const before = await getStamps();
-      const entry = await addToDex(placeId, { favoriteDish: dish || null, myRating: rating || null, note: note || null, photo });
+      const entry = await addToDex(placeId, {
+        favoriteDish: dish || null,
+        myRating: rating || null,
+        note: note || null,
+        photo: await shrinkPhoto(photo),
+      });
       const [after, stations] = await Promise.all([getStamps(), getStations()]);
       const fresh = Object.keys(after.by_station).filter((id) => !before.by_station[id]);
       const names = fresh.map((id) => stations.find((s) => s.id === id)?.name).filter(Boolean);
       setCollected(true);
-      setMessage({
-        kind: 'success',
-        text:
-          'Added to your dex!' +
-          (entry.unlocked_pet ? ` New pet unlocked: ${entry.unlocked_pet.name}!` : '') +
-          (entry.level_ups?.length ? ' Level up!' : '') +
-          (entry.new_badges?.length ? ` Badge: ${entry.new_badges.map((b) => b.name).join(', ')}.` : '') +
-          (entry.fed === false ? ' Your pets are full for today, so no XP this time.' : '') +
-          (names.length ? ` New station stamps: ${names.join(', ')}` : ''),
-      });
+      // The celebration (XP, new pet, level-ups, badges, stamps) is the reward pop-up's job.
       onDexChange({ entry, stations: names });
     } catch (err) {
       setMessage({ kind: 'error', text: err.message });
@@ -154,6 +153,13 @@ export default function PlaceCard({ placeId, signedIn, onClose, onDexChange, onS
                 <span>Photo <span className="hint">+5 XP</span></span>
                 <input type="file" accept="image/*" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
               </label>
+              {feeding && (
+                <p className={feeding.full ? 'feed-hint full' : 'feed-hint'}>
+                  {feeding.full
+                    ? 'Your pets are full for today. You can still log this meal, but it will not give XP.'
+                    : `${feeding.remaining} ${feeding.remaining === 1 ? 'feeding' : 'feedings'} left today for your pets.`}
+                </p>
+              )}
               <button className="btn btn-primary" disabled={busy}>
                 {busy ? 'Adding…' : 'Add to my dex'}
               </button>

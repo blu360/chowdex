@@ -282,6 +282,12 @@ export function levelFromXp(xp) {
   return Math.floor(Math.sqrt(Math.max(0, xp) / 10));
 }
 
+/** Total XP at which a trainer level starts: the inverse of levelFromXp(). */
+export function xpForLevel(level) {
+  return 10 * level * level;
+}
+
+
 /* ---------------------------------------------------------------------------
  * Errors. Real and mock implementations throw errors with these codes.
  * ------------------------------------------------------------------------- */
@@ -767,6 +773,7 @@ const mockApi = {
    * @param {string} placeId
    * @param {{favoriteDish?: string, myRating?: number, note?: string, photo?: File}} [extra]
    * @returns {Promise<DexEntry>} the entry plus what it did: `fed`, `xp_gained`, `unlocked_pet`, `level_ups`, `new_badges`
+   * @throws NOT_SIGNED_IN, NOT_FOUND, or ALREADY_IN_DEX
    */
   async addToDex(placeId, { favoriteDish = null, myRating = null, note = null, photo = null } = {}) {
     await delay();
@@ -834,6 +841,37 @@ const mockApi = {
     dex[index] = next;
     writeStore(DEX_KEY, dex);
     return next;
+  },
+
+  /**
+   * Remove a journal entry. Everything derived from it (XP, levels, badges, history, an unlocked
+   * pet whose only meal it was) is recalculated, so this takes that meal's progress with it.
+   * @param {string} entryId
+   * @returns {Promise<void>}
+   * @throws NOT_SIGNED_IN or NOT_FOUND
+   */
+  async deleteDexEntry(entryId) {
+    await delay();
+    if (!isSignedIn()) throw apiError('NOT_SIGNED_IN', 'Sign in to edit your journal');
+    const dex = readStore(DEX_KEY, []);
+    if (!dex.some((e) => e.id === entryId)) throw apiError('NOT_FOUND', `Journal entry not found: ${entryId}`);
+    writeStore(DEX_KEY, dex.filter((e) => e.id !== entryId));
+  },
+
+  /**
+   * Recent happenings across all pets, newest first, in one call (feeds, joins, level-ups, badges).
+   * Each meal appears once per pet it fed; filter by `pet_id` to pick a view.
+   * @param {{limit?: number}} [options]
+   * @returns {Promise<PetHistoryEvent[]>}
+   */
+  async getActivity({ limit = 40 } = {}) {
+    await delay();
+    const dex = isSignedIn() ? readStore(DEX_KEY, []) : [];
+    return engine
+      .analyze(dex)
+      .events.sort((a, b) => b.at.localeCompare(a.at) || b.seq - a.seq)
+      .slice(0, limit)
+      .map(({ seq, ...event }) => event);
   },
 
   /**
@@ -1029,6 +1067,8 @@ export const {
   setActivePet,
   setPetNickname,
   getFeedingStatus,
+  deleteDexEntry,
+  getActivity,
   getBadges,
   getPetHistory,
   getPetJournal,

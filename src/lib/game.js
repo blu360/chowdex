@@ -2,39 +2,54 @@
  * Display helpers for the dashboard and pet screens. Everything here is derived from what
  * src/lib/api.js returns: no game rules live in this file, and nothing is stored.
  */
-import { levelFromXp } from './api.js';
+import { PET_LEVEL_XP, levelFromXp, xpForLevel } from './api.js';
 
-/** Trainer levels follow levelFromXp(): level L starts at 10 * L^2 XP. */
-export const xpForTrainerLevel = (level) => 10 * level * level;
-
-/** @returns {{level: number, xp: number, next: number, percent: number}} progress toward the next trainer level */
+/**
+ * The explorer (trainer) level is a separate, uncapped track from the pets' levels 1 to 5: it
+ * follows levelFromXp(), and a level starts at xpForLevel(level) XP.
+ * @returns {{level: number, xp: number, next: number, percent: number}} progress through the current explorer level
+ */
 export function trainerProgress(xp) {
   const level = levelFromXp(xp);
-  const next = xpForTrainerLevel(level + 1);
-  return { level, xp, next, percent: Math.min(100, Math.round((100 * xp) / next)) };
+  const start = xpForLevel(level);
+  const next = xpForLevel(level + 1);
+  return { level, xp, next, percent: Math.min(100, Math.round((100 * (xp - start)) / (next - start))) };
 }
 
-/** @returns {{percent: number, max: boolean, label: string}} a pet's XP bar */
+/**
+ * A pet's XP bar. It fills from the start of the current level to the next one, the same way the
+ * level track under it does, and the label shows total XP against the next goal.
+ * @returns {{percent: number, max: boolean, label: string}}
+ */
 export function petProgress(pet) {
   if (pet.next_level_xp == null) return { percent: 100, max: true, label: `${pet.xp} XP · fully grown` };
+  const start = pet.level > 0 ? PET_LEVEL_XP[pet.level - 1] : 0;
   return {
-    percent: Math.min(100, Math.round((100 * pet.xp) / pet.next_level_xp)),
+    percent: Math.max(0, Math.min(100, Math.round((100 * (pet.xp - start)) / (pet.next_level_xp - start)))),
     max: false,
     label: `${pet.xp} / ${pet.next_level_xp} XP`,
   };
 }
 
 const DAY_MS = 86400000;
-const DATE = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
-const DATE_YEAR = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+/** Days and "last night" follow the same Boston clock the API uses for the daily feeding limit and time badges. */
+const TIME_ZONE = 'America/New_York';
+const DATE = new Intl.DateTimeFormat('en-US', { timeZone: TIME_ZONE, month: 'short', day: 'numeric' });
+const DATE_YEAR = new Intl.DateTimeFormat('en-US', { timeZone: TIME_ZONE, month: 'short', day: 'numeric', year: 'numeric' });
+const DAY_KEY = new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' });
 
 export const formatDate = (iso) => DATE.format(new Date(iso));
 export const formatFullDate = (iso) => DATE_YEAR.format(new Date(iso));
 
-/** "today", "yesterday", "3 days ago", then a plain date. */
+/** Whole days since the Unix epoch, counted on the Boston calendar. */
+function bostonDayNumber(date) {
+  const [y, m, d] = DAY_KEY.format(date).split('-').map(Number);
+  return Date.UTC(y, m - 1, d) / DAY_MS;
+}
+
+/** "today", "yesterday", "3 days ago", then a plain date (all in Boston time). */
 export function timeAgo(iso) {
-  const then = new Date(iso);
-  const days = Math.floor((new Date().setHours(0, 0, 0, 0) - new Date(then).setHours(0, 0, 0, 0)) / DAY_MS);
+  const days = Math.round(bostonDayNumber(new Date()) - bostonDayNumber(new Date(iso)));
   if (days <= 0) return 'today';
   if (days === 1) return 'yesterday';
   if (days < 7) return `${days} days ago`;
@@ -89,13 +104,15 @@ const RANK = { level: 0, badge: 1, pet: 2, stamp: 3, meal: 4 };
  * One merged "recent activity" list, newest first, built from the pets' histories and the stamps.
  * @param {Object} input
  * @param {import('./api.js').Pet[]} input.pets
- * @param {import('./api.js').PetHistoryEvent[]} input.events   histories of every unlocked pet, concatenated
+ * @param {import('./api.js').PetHistoryEvent[]} input.events   from getActivity()
+ * @param {import('./api.js').Badge[]} input.badges   from getBadges(), used to name badge events
  * @param {import('./api.js').StampSummary} input.stamps
  * @param {import('./api.js').Station[]} input.stations
  * @param {import('./api.js').DexEntry[]} input.entries
  */
-export function buildActivity({ pets, events, stamps, stations, entries }) {
+export function buildActivity({ pets, events, badges, stamps, stations, entries }) {
   const petById = Object.fromEntries(pets.map((p) => [p.id, p]));
+  const badgeById = Object.fromEntries(badges.map((b) => [b.id, b]));
   const items = [];
   events.forEach((ev, i) => {
     const pet = petById[ev.pet_id];
@@ -110,7 +127,14 @@ export function buildActivity({ pets, events, stamps, stations, entries }) {
     } else if (ev.type === 'level_up') {
       items.push({ ...base, kind: 'level', title: `${pet.display_name} reached level ${ev.level}` });
     } else if (ev.type === 'badge') {
-      items.push({ ...base, kind: 'badge', title: ev.text.replace(/\.$/, '').replace(' (Earned)', ''), sub: `Worn by ${pet.display_name}` });
+      const badge = badgeById[ev.badge_id];
+      const tier = badge?.tier_labels?.[ev.tier - 1];
+      items.push({
+        ...base,
+        kind: 'badge',
+        title: `Earned ${badge?.name ?? 'a badge'}${tier && tier !== 'Earned' ? ` (${tier})` : ''}`,
+        sub: `Worn by ${pet.display_name}`,
+      });
     }
   });
 

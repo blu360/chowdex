@@ -1,11 +1,33 @@
 import { useEffect, useState } from 'react';
-import { getPetJournal, getPlaces, updateDexEntry } from '../../lib/api.js';
+import { deleteDexEntry, getNeighborhoodProgress, getPetJournal, updateDexEntry } from '../../lib/api.js';
 import { Icon, Stars, XpBar } from '../../components/ui.jsx';
 import { formatFullDate, titleCase } from '../../lib/game.js';
+import { shrinkPhoto } from '../../lib/image.js';
+
+const SORTS = [
+  { id: 'new', label: 'Newest first' },
+  { id: 'old', label: 'Oldest first' },
+  { id: 'rating', label: 'Top rated' },
+  { id: 'name', label: 'A to Z' },
+];
+
+/** Does this journal entry match what the user typed? Looks at the place, cuisine, area, dish, and note. */
+function matches(entry, query) {
+  const hay = [entry.place.name, entry.place.cuisine, entry.place.neighborhood?.name, entry.favorite_dish, entry.note]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  return query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((word) => hay.includes(word));
+}
 
 /** One journal entry: read view, with an inline editor for the dish, rating, note, and photo. */
 function DexEntryCard({ entry, onSaved, onShowOnMap }) {
   const [editing, setEditing] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [dish, setDish] = useState(entry.favorite_dish ?? '');
   const [rating, setRating] = useState(entry.my_rating ?? 0);
   const [note, setNote] = useState(entry.note ?? '');
@@ -22,7 +44,7 @@ function DexEntryCard({ entry, onSaved, onShowOnMap }) {
         favoriteDish: dish || null,
         myRating: rating || null,
         note: note || null,
-        ...(photo !== undefined ? { photo } : null),
+        ...(photo !== undefined ? { photo: await shrinkPhoto(photo) } : null),
       });
       setEditing(false);
       setPhoto(undefined);
@@ -30,6 +52,18 @@ function DexEntryCard({ entry, onSaved, onShowOnMap }) {
     } catch (err) {
       setError(err.message);
     } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteDexEntry(entry.id);
+      onSaved();
+    } catch (err) {
+      setError(err.message);
       setBusy(false);
     }
   };
@@ -96,10 +130,20 @@ function DexEntryCard({ entry, onSaved, onShowOnMap }) {
             {entry.favorite_dish && <p className="dex-dish">{entry.favorite_dish}</p>}
             <Stars value={entry.my_rating} />
             {entry.note && <p className="dex-note">“{entry.note}”</p>}
-            <div className="dex-actions">
-              <button className="link-btn" onClick={() => setEditing(true)}><Icon name="pencil" size={14} />Edit</button>
-              <button className="link-btn" onClick={() => onShowOnMap(place.id)}><Icon name="pin" size={14} />Show on map</button>
-            </div>
+            {confirmingDelete ? (
+              <div className="confirm-row" role="alert">
+                <span>Delete this entry? Its XP, and anything it unlocked, goes with it.</span>
+                <button className="btn btn-small btn-danger" disabled={busy} onClick={remove}>{busy ? 'Deleting…' : 'Yes, delete'}</button>
+                <button className="btn btn-small" disabled={busy} onClick={() => setConfirmingDelete(false)}>Keep it</button>
+              </div>
+            ) : (
+              <div className="dex-actions">
+                <button className="link-btn" onClick={() => setEditing(true)}><Icon name="pencil" size={14} />Edit</button>
+                <button className="link-btn" onClick={() => onShowOnMap(place.id)}><Icon name="pin" size={14} />Show on map</button>
+                <button className="link-btn danger" onClick={() => setConfirmingDelete(true)}><Icon name="close" size={13} />Delete</button>
+              </div>
+            )}
+            {error && <p className="error">{error}</p>}
           </>
         )}
       </div>
@@ -110,12 +154,14 @@ function DexEntryCard({ entry, onSaved, onShowOnMap }) {
 /** My Dex: every restaurant you have logged, as a personal food journal. */
 export default function DexPage({ version, signedIn, onChange, onExplore, onGo, onSignIn, onDemo }) {
   const [data, setData] = useState(null);
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState('new');
 
   useEffect(() => {
     let cancelled = false;
     // The starter eats everywhere, so its journal is the whole dex, already joined with each place.
-    Promise.all([getPetJournal('starter'), getPlaces()]).then(([journal, places]) => {
-      if (!cancelled) setData({ journal, total: places.length });
+    Promise.all([getPetJournal('starter'), getNeighborhoodProgress()]).then(([journal, hoods]) => {
+      if (!cancelled) setData({ journal, hoods });
     });
     return () => {
       cancelled = true;
@@ -130,9 +176,18 @@ export default function DexPage({ version, signedIn, onChange, onExplore, onGo, 
     );
   }
 
-  const { journal, total } = data;
+  const { journal, hoods } = data;
   const { stats, entries } = journal;
   const found = new Set(entries.map((e) => e.place.id)).size;
+  const areas = hoods.filter((h) => h.visited).length;
+
+  const sorters = {
+    new: (a, b) => b.visited_at.localeCompare(a.visited_at),
+    old: (a, b) => a.visited_at.localeCompare(b.visited_at),
+    rating: (a, b) => (b.my_rating ?? 0) - (a.my_rating ?? 0) || b.visited_at.localeCompare(a.visited_at),
+    name: (a, b) => a.place.name.localeCompare(b.place.name),
+  };
+  const shown = entries.filter((e) => matches(e, query)).sort(sorters[sort]);
 
   return (
     <div className="page paper">
@@ -143,9 +198,9 @@ export default function DexPage({ version, signedIn, onChange, onExplore, onGo, 
             <p className="muted">Your food journal: every place you have tried, with your dishes, ratings, and notes.</p>
           </div>
           <div className="count-card">
-            <strong>{found}<span> / {total}</span></strong>
-            <XpBar percent={total ? (100 * found) / total : 0} label="Restaurants discovered" />
-            <small>restaurants discovered</small>
+            <strong>{found}<span> {found === 1 ? 'restaurant' : 'restaurants'}</span></strong>
+            <XpBar percent={hoods.length ? (100 * areas) / hoods.length : 0} label="Neighborhoods explored" />
+            <small>across {areas} of {hoods.length} neighborhoods</small>
           </div>
         </header>
 
@@ -177,8 +232,30 @@ export default function DexPage({ version, signedIn, onChange, onExplore, onGo, 
           </div>
         )}
 
+        {entries.length > 1 && (
+          <div className="dex-tools">
+            <label className="dex-search">
+              <Icon name="explore" size={16} />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search your dex: place, dish, cuisine, area"
+                aria-label="Search your dex"
+              />
+            </label>
+            <label className="dex-sort">
+              <span className="sr-only">Sort by</span>
+              <select value={sort} onChange={(e) => setSort(e.target.value)}>
+                {SORTS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+              </select>
+            </label>
+          </div>
+        )}
+        {query && shown.length === 0 && <p className="muted empty">Nothing in your dex matches “{query}”.</p>}
+
         <ul className="dex-list">
-          {entries.map((entry) => (
+          {shown.map((entry) => (
             <DexEntryCard
               key={entry.id}
               entry={entry}

@@ -21,6 +21,7 @@ import { STARTER_TINT, tintsFor } from './PetsPage.jsx';
 const EVENT_ICON = { unlocked: 'pets', fed: 'meal', full: 'meal', level_up: 'bolt', badge: 'medal' };
 const HISTORY_PREVIEW = 6;
 const BADGE_PREVIEW = 4;
+const JOURNAL_PREVIEW = 3;
 
 /** The pet's origin, written from its real history. */
 function originStory(pet, journal, history) {
@@ -52,7 +53,8 @@ function Fact({ label, children }) {
 }
 
 /** A collectible character page for one pet. */
-export default function PetProfile({ petId, version, signedIn, onBack, onChange, onExplore }) {
+export default function PetProfile({ petId, version, signedIn, onBack, onChange, onExplore, onGo }) {
+  const [allJournal, setAllJournal] = useState(false);
   const [data, setData] = useState(null);
   const [missing, setMissing] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -93,6 +95,7 @@ export default function PetProfile({ petId, version, signedIn, onBack, onChange,
     setEditing(false);
     setAllHistory(false);
     setAllBadges(false);
+    setAllJournal(false);
     setError(null);
   }, [petId]);
 
@@ -178,6 +181,7 @@ export default function PetProfile({ petId, version, signedIn, onBack, onChange,
   const sortedBadges = [...badges].sort((a, b) => Number(b.earned) - Number(a.earned) || closeness(b) - closeness(a));
   const shownBadges = allBadges ? sortedBadges : sortedBadges.slice(0, BADGE_PREVIEW);
   const shownHistory = allHistory ? history : history.slice(0, HISTORY_PREVIEW);
+  const shownJournal = allJournal ? journal.entries : journal.entries.slice(0, JOURNAL_PREVIEW);
 
   const saveNickname = (e) => {
     e.preventDefault();
@@ -327,6 +331,50 @@ export default function PetProfile({ petId, version, signedIn, onBack, onChange,
                 <button className="more-btn" onClick={() => setAllBadges((v) => !v)}>
                   {allBadges ? 'Show fewer' : `Show all ${sortedBadges.length}`}
                 </button>
+              )}
+            </section>
+
+            {/* Food journal: the meals that fed this pet */}
+            <section className="card">
+              <div className="sec-head">
+                <h2 className="card-title">Food journal</h2>
+                {onGo && journal.entries.length > 0 && (
+                  <button className="sec-link" onClick={() => onGo('dex')}>Edit in My Dex</button>
+                )}
+              </div>
+              {journal.entries.length === 0 ? (
+                <p className="muted">No meals logged for {pet.display_name} yet.</p>
+              ) : (
+                <>
+                  <ul className="journal-list">
+                    {shownJournal.map((e) => (
+                      <li key={e.id}>
+                        {e.photo_url ? (
+                          <img className="journal-thumb" src={e.photo_url} alt={`Your photo from ${e.place.name}`} />
+                        ) : (
+                          <span className="journal-thumb empty" aria-hidden="true"><Icon name="meal" size={18} /></span>
+                        )}
+                        <div>
+                          <p>
+                            <b>{e.place.name}</b>
+                            <span className={e.fed ? 'gain' : 'gain none'}>{e.fed ? `+${e.xp_gained} XP` : 'No XP'}</span>
+                          </p>
+                          <small>
+                            {titleCase(e.place.cuisine)} · {formatDate(e.visited_at)}
+                            {e.favorite_dish ? ` · ${e.favorite_dish}` : ''}
+                          </small>
+                          <Stars value={e.my_rating} />
+                          {e.note && <p className="journal-note">“{e.note}”</p>}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                  {journal.entries.length > JOURNAL_PREVIEW && (
+                    <button className="more-btn" onClick={() => setAllJournal((v) => !v)}>
+                      {allJournal ? 'Show fewer' : `Show all ${journal.entries.length} meals`}
+                    </button>
+                  )}
+                </>
               )}
             </section>
 

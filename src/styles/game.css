@@ -315,9 +315,17 @@ input, textarea, select { font-family: inherit; }
   .journey-map { height: 260px; }
 }
 @media (min-width: 980px) {
-  .home { grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); align-items: start; gap: 18px; }
-  .home .span { grid-column: 1 / -1; }
-  .home-side { gap: 18px; }
+  /* Pets and the activity feed stack on the left; the journey map sits beside them on the right. */
+  .home {
+    grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); align-items: start; gap: 18px;
+    grid-template-areas: 'overview overview' 'pets journey' 'activity journey';
+    /* The tall journey card spans two rows; the spare height goes to the last row so the left column stays tight. */
+    grid-template-rows: auto auto 1fr;
+  }
+  .home .span { grid-area: overview; }
+  .home .area-pets { grid-area: pets; }
+  .home .area-journey { grid-area: journey; }
+  .home .area-activity { grid-area: activity; }
   .page-head h1 { font-size: 30px; }
 }
 
@@ -432,6 +440,54 @@ input, textarea, select { font-family: inherit; }
 .empty-card { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 18px; background: #fff; border: 2.5px dashed var(--gray); border-radius: 16px; }
 @media (min-width: 760px) {
   .dex-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Dex tools, delete, and the check-in hint */
+.dex-tools { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.dex-search {
+  flex: 1 1 240px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: #fff;
+  border: 2.5px solid var(--ink); border-radius: 14px; color: var(--muted);
+}
+.dex-search:focus-within { background: var(--yellow-soft); color: var(--ink); }
+.dex-search input { flex: 1; min-width: 0; height: 40px; border: 0; outline: 0; background: transparent; font: 500 14px var(--font-ui); color: var(--ink); }
+.dex-sort select {
+  height: 100%; min-height: 40px; padding: 0 30px 0 12px; background: #fff; border: 2.5px solid var(--ink); border-radius: 14px;
+  font: 600 13.5px var(--font-ui); color: var(--ink);
+}
+.btn-danger { background: var(--red); border-color: var(--ink); color: #fff; }
+.btn-danger:hover { background: #a91e2a; color: #fff; }
+.link-btn.danger:hover { color: var(--red); }
+.confirm-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; padding: 8px 10px; background: #fdecec; border: 2px solid var(--red); border-radius: 12px; font: 500 13px var(--font-ui); }
+.confirm-row span { flex: 1 1 100%; }
+.feed-hint { padding: 6px 10px; background: var(--yellow-soft); border: 2px solid var(--line-soft); border-radius: 10px; font: 500 12.5px var(--font-ui); color: var(--ink); }
+.feed-hint.full { background: #eef6ee; }
+.pet-card .pet-name { white-space: normal; text-overflow: clip; overflow-wrap: anywhere; line-height: 1.2; }
+.pet-card-top { align-items: flex-start; }
+
+/* A pet's own food journal */
+.journal-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.journal-list li { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 10px; align-items: start; padding-top: 10px; border-top: 2px dashed var(--line-soft); }
+.journal-list li:first-child { padding-top: 0; border-top: 0; }
+.journal-thumb { width: 48px; height: 48px; object-fit: cover; border: 2px solid var(--ink); border-radius: 10px; background: var(--yellow-soft); }
+.journal-thumb.empty { display: grid; place-items: center; }
+.journal-list p { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font: 500 14px var(--font-ui); }
+.journal-list small { display: block; font: 400 12.5px var(--font-ui); color: var(--muted); }
+.journal-list p.journal-note { display: block; margin-top: 2px; font: italic 400 13px/1.4 var(--font-body); color: var(--muted); }
+
+/* Badge gallery */
+.badge-gallery { display: grid; gap: 14px; }
+.gallery-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; font: 500 15px var(--font-ui); }
+.gallery-head .switch-row { padding: 0; }
+.gallery-note { margin-top: -6px; }
+.badge-list.wide { grid-template-columns: minmax(0, 1fr); }
+.badge small.tiers { margin-top: 2px; font-weight: 600; letter-spacing: 0.01em; }
+.wearer {
+  display: inline-block; margin-top: 6px; padding: 0; background: none; border: 0; font: 600 12px var(--font-ui); color: var(--ink);
+  text-decoration: underline; text-decoration-color: var(--yellow); text-decoration-thickness: 3px; text-underline-offset: 3px; text-align: left;
+}
+.wearer:hover { text-decoration-color: var(--ink); }
+@media (min-width: 760px) {
+  .badge-list.wide { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* ---------- Reward pop-up ---------- */

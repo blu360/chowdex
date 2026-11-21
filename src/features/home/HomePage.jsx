@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import {
+  getActivity,
+  getBadges,
   getFeedingStatus,
   getNeighborhoodProgress,
   getNeighborhoods,
-  getPetHistory,
   getPetJournal,
   getPets,
   getPlaces,
@@ -30,7 +31,7 @@ export default function HomePage({ version, user, profile, onOpenPet, onGo, onEx
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [pets, hoods, stamps, stations, journal, feeding, places, hoodGeo] = await Promise.all([
+      const [pets, hoods, stamps, stations, journal, feeding, places, hoodGeo, events, badges] = await Promise.all([
         getPets(),
         getNeighborhoodProgress(),
         getStamps(),
@@ -39,9 +40,9 @@ export default function HomePage({ version, user, profile, onOpenPet, onGo, onEx
         getFeedingStatus(),
         getPlaces(),
         getNeighborhoods(),
+        getActivity({ limit: 60 }), // every pet's recent happenings in one call
+        getBadges(),
       ]);
-      const unlocked = pets.filter((p) => p.unlocked);
-      const histories = await Promise.all(unlocked.map((p) => getPetHistory(p.id)));
       if (cancelled) return;
       setData({
         pets,
@@ -52,7 +53,7 @@ export default function HomePage({ version, user, profile, onOpenPet, onGo, onEx
         places,
         hoodGeo,
         tints: tintsFor(hoods),
-        activity: buildActivity({ pets, events: histories.flat(), stamps, stations, entries: journal.entries }),
+        activity: buildActivity({ pets, events, badges, stamps, stations, entries: journal.entries }),
       });
     })();
     return () => {
@@ -107,10 +108,10 @@ export default function HomePage({ version, user, profile, onOpenPet, onGo, onEx
               <span className="avatar" aria-hidden="true">{user.display_name.slice(0, 1)}</span>
               <div className="overview-main">
                 <p className="overview-name">
-                  {user.display_name} <span className="lv-pill">Trainer Lv {trainer.level}</span>
+                  {user.display_name} <span className="lv-pill" title="Your explorer level grows with every meal that fed your pets">Explorer Lv {trainer.level}</span>
                 </p>
                 <div className="xp-row">
-                  <XpBar percent={trainer.percent} label="XP toward the next trainer level" />
+                  <XpBar percent={trainer.percent} label="XP toward the next explorer level" />
                   <span>{trainer.xp} / {trainer.next} XP</span>
                 </div>
               </div>
@@ -140,7 +141,7 @@ export default function HomePage({ version, user, profile, onOpenPet, onGo, onEx
         </section>
 
         {/* ---------- My pets ---------- */}
-        <section className="pets-section">
+        <section className="pets-section area-pets">
           <div className="sec-head">
             <h2>My Pets</h2>
             <button className="sec-link" onClick={() => onGo('pets')}>
@@ -175,9 +176,10 @@ export default function HomePage({ version, user, profile, onOpenPet, onGo, onEx
           </div>
         </section>
 
-        <div className="home-side">
+        {/* On wide screens the journey sits in the right column beside the pets and the activity feed. */}
+        <>
           {/* ---------- Your Boston journey ---------- */}
-          <section className="card">
+          <section className="card area-journey">
             <div className="sec-head">
               <h2>Your Boston Journey</h2>
               <button className="sec-link" onClick={() => onGo('explore')}>Open map</button>
@@ -230,7 +232,7 @@ export default function HomePage({ version, user, profile, onOpenPet, onGo, onEx
           </section>
 
           {/* ---------- Recent activity ---------- */}
-          <section className="card">
+          <section className="card area-activity">
             <div className="sec-head">
               <h2>Recent activity</h2>
               {journal.entries.length > 0 && <button className="sec-link" onClick={() => onGo('dex')}>My Dex</button>}
@@ -268,7 +270,7 @@ export default function HomePage({ version, user, profile, onOpenPet, onGo, onEx
               </>
             )}
           </section>
-        </div>
+        </>
       </div>
     </div>
   );

@@ -79,6 +79,15 @@ export default function App() {
 
   const bump = useCallback(() => setVersion((v) => v + 1), []);
 
+  // Leaving Explore forgets the open place card and the last search focus, so coming back starts fresh.
+  // (Jumping to Explore from another screen sets them first and then changes the tab, so that still works.)
+  useEffect(() => {
+    if (tab !== 'explore') {
+      setSelected(null);
+      setFocus(null);
+    }
+  }, [tab]);
+
   /**
    * Runs `change` while a train drives across the screen: the screen is fully covered when the page
    * underneath swaps. Skipped (change runs right away) for people who prefer reduced motion.
@@ -199,7 +208,7 @@ export default function App() {
 
         <div className="account">
           {profile && (
-            <button className="trainer-chip" onClick={() => goTo('home')} title="Trainer level, XP, and stations stamped">
+            <button className="trainer-chip" onClick={() => goTo('home')} title="Explorer level, XP, and stations stamped">
               <b>Lv {profile.level}</b>
               <span>{profile.xp} XP</span>
               <span className="wide-only">{stampTotal} stamps</span>
@@ -224,8 +233,7 @@ export default function App() {
               <button className="btn btn-small btn-quiet" onClick={onDemo} title="Mock mode: fill the dex with sample places">
                 Load demo data
               </button>
-              {user && <button className="btn btn-small btn-quiet" onClick={act(resetDemoData)}>Reset</button>}
-            </div>
+              {user && <button className="btn btn-small btn-quiet" onClick={act(resetDemoData)}>Reset</button>}            </div>
           )}
         </div>
       </header>
@@ -305,6 +313,7 @@ export default function App() {
               onBack={() => go('pets')}
               onChange={bump}
               onExplore={exploreTo}
+              onGo={goTo}
             />
           ) : (
             <PetsPage version={version} signedIn={signedIn} onOpenPet={openPet} />
