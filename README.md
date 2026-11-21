@@ -28,6 +28,8 @@ Keys:
 - `MBTA_API_KEY` (free from api-v3.mbta.com) is **not** sent to the browser. The Vite dev server adds it to requests made to `/mbta/...` (see `vite.config.js`), which is how live trains are fetched. Without a key the app falls back to the public API at a lower rate limit, and then to simulated trains. In production an edge function should do what the proxy does.
 - `.env` is gitignored and must never be committed.
 
+Design: a doodled transit-map look inspired by the BostonHacks site: a calm backdrop of soft pastel color washes (the MBTA line colors, very faint), thick line colors, black marker outlines with hard offset shadows, and yellow highlighter. Fonts (Akshar, Noto Sans, Permanent Marker) load from Google Fonts. Changing pages or signing in plays a train animation (`src/components/TrainTransition.jsx`): the Green, Red, Orange, and Blue Line trains take turns, drawn after the MBTA Green Line car. It is skipped for people who prefer reduced motion.
+
 Map: the basemap is swappable in the layers panel (Clean, Soft, Streets, Classic, Night). Streets only appear once you zoom in, and panning is limited to the Boston area (`src/features/map/mapStyles.js`).
 
 ## Folder ownership
@@ -40,7 +42,7 @@ Map: the basemap is swappable in the layers panel (Clean, Soft, Streets, Classic
 | `src/lib/` | Backend (shared contract) | `api.js` data layer, Supabase client, mock data |
 | `src/features/map/`, `src/features/place/` | Map and place card | Map view, search, filters, legend, live trains, place details |
 | `src/features/dex/`, `src/features/pet/`, `src/features/stamps/` | Dex and pet | Dex UI, check-in, pet XP and levels, station stamps and line badges |
-| `src/styles/` | Dex and pet | Theme and shared styles |
+| `src/styles/`, `src/components/` | Dex and pet | Theme and shared styles; trains, doodles, and the page transition |
 | `docs/` | Everyone | Schema and notes |
 
 ## Rules

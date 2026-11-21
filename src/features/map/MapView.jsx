@@ -18,8 +18,8 @@ import { buildTracks, pointOnTrack, snapToTrack } from './trainTrack.js';
 setWorkerUrl(workerUrl);
 
 const EMPTY = { type: 'FeatureCollection', features: [] };
-const NAVY = '#14407A';
-const GOLD = '#F2B01E';
+const INK = '#111111';
+const YELLOW = '#F7DD04';
 const TRAIN_POLL_MS = 8000;
 const DEFAULT_GLIDE_MS = 12000;
 const MIN_GLIDE_MS = 5000;
@@ -156,8 +156,8 @@ function installLayers(map, { data, dark, layers }) {
     paint: {
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 3, 15, 8],
       'circle-color': ['case', ['==', ['get', 'stamped'], 1], ['get', 'color'], dark ? '#16233b' : '#ffffff'],
-      'circle-stroke-color': ['get', 'color'],
-      'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 15, 2.5],
+      'circle-stroke-color': dark ? '#dbe7fb' : INK,
+      'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 10, 2, 15, 3],
     },
   });
   map.addLayer({
@@ -197,8 +197,8 @@ function installLayers(map, { data, dark, layers }) {
     paint: {
       'circle-color': ['get', 'color'],
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 3.5, 15, 7],
-      'circle-stroke-color': '#ffffff',
-      'circle-stroke-width': 1.5,
+      'circle-stroke-color': INK,
+      'circle-stroke-width': 2,
     },
   });
 
@@ -210,9 +210,9 @@ function installLayers(map, { data, dark, layers }) {
     source: 'places',
     paint: {
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 4.5, 15, 9],
-      'circle-color': ['case', ['==', ['get', 'collected'], 1], GOLD, NAVY],
-      'circle-stroke-color': dark ? '#0a1526' : '#ffffff',
-      'circle-stroke-width': 2,
+      'circle-color': ['case', ['==', ['get', 'collected'], 1], YELLOW, dark ? '#dbe7fb' : INK],
+      'circle-stroke-color': ['case', ['==', ['get', 'collected'], 1], INK, dark ? '#0a1526' : '#ffffff'],
+      'circle-stroke-width': 2.5,
     },
   });
   map.addLayer({

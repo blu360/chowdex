@@ -109,7 +109,7 @@ export default function SearchPanel({ filters, onFilters, layers, onLayers, styl
             onFocus={() => setFocused(true)}
             onBlur={() => setTimeout(() => setFocused(false), 150)}
             onKeyDown={onKeyDown}
-            placeholder="Search food, stations, neighborhoods"
+            placeholder="Search food, stations, areas"
             aria-label="Search the map"
           />
           {query && (
