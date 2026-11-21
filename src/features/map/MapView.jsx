@@ -11,7 +11,7 @@ import {
   getNeighborhoods,
   getVehicles,
 } from '../../lib/api.js';
-import { MAX_BOUNDS, MIN_ZOOM, VIEW_BOUNDS, pickLabelFont, styleById, tweakBasemap } from './mapStyles.js';
+import { DEFAULT_VIEW, MAX_BOUNDS, MIN_ZOOM, PLACE_MIN_ZOOM, pickLabelFont, styleById, tweakBasemap } from './mapStyles.js';
 import { angleDiff, buildTracks, headingOnTrack, pointOnTrack, snapToTrack } from './trainTrack.js';
 import { registerTrainIcons } from './trainIcons.js';
 
@@ -206,6 +206,7 @@ function installLayers(map, { data, dark, layers }) {
     id: 'places',
     type: 'circle',
     source: 'places',
+    minzoom: PLACE_MIN_ZOOM,
     paint: {
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 4.5, 15, 9],
       'circle-color': ['case', ['==', ['get', 'collected'], 1], YELLOW, dark ? '#dbe7fb' : NAVY],
@@ -273,8 +274,8 @@ export default function MapView({
       map = new MapLibreMap({
         container: containerRef.current,
         style: styleById(latest.current.styleId).url,
-        bounds: VIEW_BOUNDS,
-        fitBoundsOptions: { padding: 24 },
+        center: DEFAULT_VIEW.center,
+        zoom: window.innerWidth < 700 ? DEFAULT_VIEW.mobileZoom : DEFAULT_VIEW.zoom,
         maxBounds: MAX_BOUNDS,
         minZoom: MIN_ZOOM,
         attributionControl: { compact: true },

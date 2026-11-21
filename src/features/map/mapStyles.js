@@ -26,8 +26,11 @@ export const DEFAULT_STYLE_ID = 'clean';
 
 export const styleById = (id) => MAP_STYLES.find((s) => s.id === id) ?? MAP_STYLES[0];
 
-/** Initial view: Boston and Cambridge, [[west, south], [east, north]]. */
-export const VIEW_BOUNDS = [[-71.19, 42.22], [-70.98, 42.42]];
+/** The default view the map opens at (and the one to return to): Boston and Cambridge, centered. */
+export const DEFAULT_VIEW = { center: [-71.075, 42.335], zoom: 11.2, mobileZoom: 10.3 };
+
+/** Restaurants only appear once you zoom in this far; search and the place card still work at any zoom. */
+export const PLACE_MIN_ZOOM = 13;
 
 /** The map can't be panned much past Boston: the same area plus roughly 8 km of margin. */
 export const MAX_BOUNDS = [[-71.3, 42.14], [-70.84, 42.5]];

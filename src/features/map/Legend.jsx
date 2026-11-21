@@ -17,7 +17,7 @@ export default function Legend() {
         <div className="legend-body">
           <section>
             <h4>Eats</h4>
-            <p><i className="sym sym-place" /> Restaurant</p>
+            <p><i className="sym sym-place" /> Restaurant (zoom in)</p>
             <p><i className="sym sym-collected" /> In your dex</p>
           </section>
           <section>
