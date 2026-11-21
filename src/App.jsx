@@ -131,13 +131,10 @@ export default function App() {
     withTrain(run(fn));
   };
 
-  /**
-   * Main navigation is instant, like tabs in a mobile game: the new screen eases in on its own.
-   * (The train still drives by for the bigger moments: signing in or out and loading demo data.)
-   */
+  /** Main navigation: the train drives by while the screen changes. */
   const goTo = (next) => {
     setMenuOpen(false);
-    if (next !== tab || route.id) go(next);
+    if (next !== tab || route.id) withTrain(() => go(next));
   };
 
   /** Opening a pet (and going back) is a quick in-place change, with no train. */
@@ -252,7 +249,6 @@ export default function App() {
             onExplore={exploreTo}
             onSignIn={onSignIn}
             onDemo={onDemo}
-            onChange={bump}
           />
         )}
 

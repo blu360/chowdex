@@ -566,10 +566,7 @@ export default function MapView({
       el?.removeAttribute('open');
     };
     collapseCredits();
-    // The credits fill in (and pop open) once the tiles arrive, so collapse again when the map settles.
     const creditsTimer = setTimeout(collapseCredits, 600);
-    const creditsLate = setTimeout(collapseCredits, 2500);
-    map.once('idle', collapseCredits);
     for (const f of dataRef.current.neighborhoods.features) {
       const on = explored.has(f.properties.id);
       map.setFeatureState({ source: 'neighborhoods', id: f.properties.id }, { lit: on, dim: !on });
@@ -584,11 +581,7 @@ export default function MapView({
       map.setFilter(id, only);
       if (id === 'places') map.setLayerZoomRange(id, 0, 24);
     }
-    return () => {
-      clearTimeout(creditsTimer);
-      clearTimeout(creditsLate);
-      map.off('idle', collapseCredits);
-    };
+    return () => clearTimeout(creditsTimer);
   }, [ready, journeyKey]);
 
   // Fly to a search result

@@ -10,26 +10,23 @@ import {
   getPlaces,
   getStamps,
   getStations,
-  setActivePet,
 } from '../../lib/api.js';
 import { LINE_COLORS, TIER_COLORS } from '../../lib/lines.js';
 import { Icon, LevelPill, LineDots, PetArt, XpBar } from '../../components/ui.jsx';
 import { boundsOfFeature, buildActivity, petProgress, timeAgo, trainerProgress } from '../../lib/game.js';
 import JourneyMap from '../map/JourneyMap.jsx';
-import { homeOf } from '../pet/PetCard.jsx';
-import PetStage from '../pet/PetStage.jsx';
+import PetCard, { homeOf } from '../pet/PetCard.jsx';
 import { STARTER_TINT, tintsFor } from '../pet/PetsPage.jsx';
 import { loreFor } from '../pet/petLore.js';
 
-const FEED_PREVIEW = 5;
+const PARTY_SIZE = 5; // pets shown next to the buddy before "see all"
+const FEED_PREVIEW = 6;
 const KIND_ICON = { meal: 'meal', stamp: 'stamps', level: 'bolt', badge: 'medal' };
 
-/** Home: your buddy and team first, then how far you have explored, where to go next, and what happened lately. */
-export default function HomePage({ version, user, profile, onOpenPet, onGo, onExplore, onSignIn, onDemo, onChange }) {
+/** The hub: your pets first, then how far you have explored and what happened lately. */
+export default function HomePage({ version, user, profile, onOpenPet, onGo, onExplore, onSignIn, onDemo }) {
   const [data, setData] = useState(null);
-  const [viewId, setViewId] = useState(null); // the team member being shown; null = the buddy
   const [allFeed, setAllFeed] = useState(false);
-  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,7 +52,6 @@ export default function HomePage({ version, user, profile, onOpenPet, onGo, onEx
         feeding,
         places,
         hoodGeo,
-        badges,
         tints: tintsFor(hoods),
         activity: buildActivity({ pets, events, badges, stamps, stations, entries: journal.entries }),
       });
@@ -73,16 +69,16 @@ export default function HomePage({ version, user, profile, onOpenPet, onGo, onEx
     );
   }
 
-  const { pets, hoods, stamps, journal, feeding, places, hoodGeo, badges, tints, activity } = data;
+  const { pets, hoods, stamps, journal, feeding, places, hoodGeo, tints, activity } = data;
   const signedIn = Boolean(user);
   const tintOf = (pet) => tints[pet.id] ?? STARTER_TINT;
 
-  // The team: your buddy first, then the highest levels.
-  const team = pets
-    .filter((p) => p.unlocked)
-    .sort((a, b) => Number(b.active) - Number(a.active) || b.level - a.level || b.xp - a.xp || (b.unlocked_at ?? '').localeCompare(a.unlocked_at ?? ''));
-  const shown = team.find((p) => p.id === viewId) ?? team[0];
-  const shownProgress = petProgress(shown);
+  const mine = pets.filter((p) => p.unlocked);
+  const buddy = mine.find((p) => p.active) ?? mine[0];
+  const party = mine
+    .filter((p) => p.id !== buddy.id)
+    .sort((a, b) => b.level - a.level || b.xp - a.xp || (b.unlocked_at ?? '').localeCompare(a.unlocked_at ?? ''));
+  const buddyProgress = petProgress(buddy);
 
   const trainer = trainerProgress(profile?.xp ?? 0);
   const visited = hoods.filter((h) => h.visited);
@@ -91,7 +87,7 @@ export default function HomePage({ version, user, profile, onOpenPet, onGo, onEx
   // Where next: neighborhoods you have not eaten in yet that have places to try, most options first.
   const placesByHood = {};
   for (const p of places) if (p.neighborhood) placesByHood[p.neighborhood.id] = (placesByHood[p.neighborhood.id] ?? 0) + 1;
-  const nextHoods = hoods
+  const nextUp = hoods
     .filter((h) => !h.visited && placesByHood[h.id])
     .sort((a, b) => placesByHood[b.id] - placesByHood[a.id] || a.name.localeCompare(b.name))
     .slice(0, 3);
@@ -100,192 +96,92 @@ export default function HomePage({ version, user, profile, onOpenPet, onGo, onEx
     if (feature) onExplore({ type: 'neighborhood', bounds: boundsOfFeature(feature) });
   };
 
-  // The badge you are closest to finishing (real progress from getBadges()).
-  const challenge = badges
-    .filter((b) => b.next_target != null && b.value > 0)
-    .sort((a, b) => b.value / b.next_target - a.value / a.next_target)[0];
-
-  const makeBuddy = async () => {
-    setBusy(true);
-    try {
-      await setActivePet(shown.id);
-      setViewId(null);
-      onChange?.();
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const feed = allFeed ? activity.slice(0, 20) : activity.slice(0, FEED_PREVIEW);
 
   return (
     <div className="page paper">
-      <div className="page-inner world rise">
+      <div className="page-inner home rise">
         {/* ---------- You ---------- */}
-        <header className="hello">
+        <section className="card overview span">
           {signedIn ? (
             <>
-              <div>
-                <h1>{user.display_name}</h1>
-                <p className="kicker">Explorer level {trainer.level}</p>
+              <span className="avatar" aria-hidden="true">{user.display_name.slice(0, 1)}</span>
+              <div className="overview-main">
+                <p className="overview-name">
+                  {user.display_name} <span className="lv-pill" title="Your explorer level grows with every meal that fed your pets">Explorer Lv {trainer.level}</span>
+                </p>
+                <div className="xp-row">
+                  <XpBar percent={trainer.percent} label="XP toward the next explorer level" />
+                  <span>{trainer.xp} / {trainer.next} XP</span>
+                </div>
               </div>
-              <div className="hello-xp" title="Your explorer level grows with every meal that fed your pets">
-                <XpBar percent={trainer.percent} label="XP toward the next explorer level" />
-                <span>{trainer.xp} / {trainer.next} XP</span>
+              <div className="stat-chips">
+                <span className="stat-chip"><b>{placeCount}</b> places</span>
+                <span className="stat-chip"><b>{stamps.stamped_total}</b> / {stamps.station_total} stamps</span>
+                <span className="stat-chip"><b>{visited.length}</b> / {hoods.length} areas</span>
+                <span className={feeding.full ? 'stat-chip fed full' : 'stat-chip fed'} title="Only the first meals each day feed your pets">
+                  <Icon name="meal" size={14} />
+                  {feeding.full ? 'Pets are full today' : `${feeding.remaining} ${feeding.remaining === 1 ? 'feeding' : 'feedings'} left today`}
+                </span>
               </div>
             </>
           ) : (
             <>
-              <div>
-                <h1>Welcome to Chowdex</h1>
-                <p className="kicker">Eat around Boston, stamp T stations, and collect a pet in every neighborhood.</p>
+              <span className="avatar" aria-hidden="true"><Icon name="user" size={22} /></span>
+              <div className="overview-main">
+                <p className="overview-name">Welcome to Chowdex</p>
+                <p className="muted">Eat around Boston, stamp T stations, and collect a pet in every neighborhood.</p>
               </div>
-              <div className="hello-actions">
+              <div className="overview-actions">
                 <button className="btn btn-solid" onClick={onSignIn}>Sign in with Google</button>
                 <button className="btn" onClick={onDemo} title="Mock mode: fill the dex with sample places">Try demo data</button>
               </div>
             </>
           )}
-        </header>
+        </section>
 
-        {/* ---------- Your buddy and team ---------- */}
-        <section className="companion" aria-label="Your pets">
-          <PetStage key={shown.id} pet={shown} tint={tintOf(shown)} />
-
-          <div className="plate">
-            <div className="plate-main">
-              <p className="plate-name">
-                {shown.display_name}
-                <LevelPill level={shown.level} max={shown.max_level} />
-                {shown.active && <span className="buddy-tag">Buddy</span>}
-              </p>
-              <p className="plate-sub">
-                {shown.nickname ? `${shown.name} · ` : ''}{homeOf(shown)}
-              </p>
-              <div className="plate-xp">
-                <XpBar percent={shownProgress.percent} label={`${shown.display_name} XP`} />
-                <span>{shownProgress.label}</span>
-              </div>
-              <p className="plate-blurb">{loreFor(shown.id).blurb}</p>
-            </div>
-            <div className="plate-actions">
-              <button className="btn btn-small" onClick={() => onOpenPet(shown.id)}>Profile</button>
-              {signedIn && !shown.active && (
-                <button className="btn btn-small btn-solid" disabled={busy} onClick={makeBuddy}>Make buddy</button>
-              )}
-            </div>
+        {/* ---------- My pets ---------- */}
+        <section className="pets-section area-pets">
+          <div className="sec-head">
+            <h2>My Pets</h2>
+            <button className="sec-link" onClick={() => onGo('pets')}>
+              All pets · {mine.length} / {pets.length}
+            </button>
           </div>
 
-          <div className="team">
-            <div className="row-head">
-              <h2>Your team</h2>
-              <button className="sec-link" onClick={() => onGo('pets')}>All pets · {team.length} / {pets.length}</button>
-            </div>
-            <div className="team-row" role="tablist" aria-label="Choose a pet">
-              {team.map((pet) => (
-                <button
-                  key={pet.id}
-                  role="tab"
-                  aria-selected={pet.id === shown.id}
-                  className={pet.id === shown.id ? 'token on' : 'token'}
-                  style={{ '--tint': tintOf(pet) }}
-                  onClick={() => setViewId(pet.id)}
-                >
-                  <span className="token-face"><img src={pet.image} alt="" draggable="false" /></span>
-                  <b>{pet.display_name}</b>
-                  <small>Lv {pet.level}</small>
-                </button>
-              ))}
-              <button className="token more" onClick={() => onGo('pets')}>
-                <span className="token-face">+{pets.length - team.length}</span>
-                <b>To find</b>
-                <small>See all</small>
-              </button>
-            </div>
+          <button className="buddy" style={{ '--tint': tintOf(buddy) }} onClick={() => onOpenPet(buddy.id)}>
+            <PetArt pet={buddy} tint={tintOf(buddy)} />
+            <span className="buddy-info">
+              <span className="buddy-tag">Your buddy</span>
+              <span className="pet-name">{buddy.display_name}</span>
+              <span className="pet-species">
+                {buddy.nickname && <>{buddy.name} <span aria-hidden="true">·</span></>} <LevelPill level={buddy.level} max={buddy.max_level} />
+              </span>
+              <XpBar percent={buddyProgress.percent} label={`${buddy.display_name} XP`} />
+              <span className="pet-xp">{buddyProgress.label}</span>
+              <span className="where"><Icon name="pin" size={13} />{homeOf(buddy)}</span>
+              <span className="buddy-blurb">{loreFor(buddy.id).blurb}</span>
+            </span>
+          </button>
+
+          <div className="party">
+            {party.slice(0, PARTY_SIZE).map((pet) => (
+              <PetCard key={pet.id} pet={pet} tint={tintOf(pet)} onOpen={onOpenPet} />
+            ))}
+            <button className="pet-card more" onClick={() => onGo('pets')}>
+              <span className="more-count">{pets.length - mine.length}</span>
+              <span className="pet-name">more to discover</span>
+              <span className="where">See the whole collection <Icon name="next" size={13} /></span>
+            </button>
           </div>
         </section>
 
-        <div className="world-side">
-          {/* ---------- Exploration ---------- */}
-          <section aria-label="Exploration progress">
-            <div className="row-head">
-              <h2>Exploration</h2>
-              {signedIn && (
-                <span className="muted small">
-                  {feeding.full ? 'Pets are full today' : `${feeding.remaining} ${feeding.remaining === 1 ? 'feeding' : 'feedings'} left today`}
-                </span>
-              )}
-            </div>
-            <div className="figures">
-              <button onClick={() => onGo('dex')}>
-                <b>{placeCount}<i>/{places.length}</i></b>
-                <span>Places</span>
-              </button>
-              <button onClick={() => onGo('stamps')}>
-                <b>{stamps.stamped_total}<i>/{stamps.station_total}</i></b>
-                <span>Stamps</span>
-              </button>
-              <button onClick={() => onGo('explore')}>
-                <b>{visited.length}<i>/{hoods.length}</i></b>
-                <span>Areas</span>
-              </button>
-            </div>
-            <button className="lines-strip" onClick={() => onGo('stamps')} aria-label="Open station stamps">
-              {stamps.lines.map((line) => (
-                <span key={line.id} className="strip-line" style={{ '--line': line.color }}>
-                  <span className="strip-name">
-                    {line.id}
-                    {line.tier !== 'none' && <em style={{ background: TIER_COLORS[line.tier] }}>{line.tier}</em>}
-                  </span>
-                  <span className="strip-track"><i style={{ width: `${line.percent}%` }} /></span>
-                  <small>{line.stamped}/{line.total}</small>
-                </span>
-              ))}
-            </button>
-          </section>
-
-          {/* ---------- Where next ---------- */}
-          {(nextHoods.length > 0 || challenge) && (
-            <section aria-label="Where next">
-              <div className="row-head">
-                <h2>Where next</h2>
-              </div>
-              <ul className="next-list">
-                {nextHoods.map((h) => {
-                  const pet = pets.find((p) => p.id === h.pet_id);
-                  return (
-                    <li key={h.id}>
-                      <button onClick={() => exploreHood(h.id)}>
-                        <PetArt pet={pet} tint="#d9d9d9" locked />
-                        <span>
-                          <b>{h.name}</b>
-                          <small>A new pet lives here · {placesByHood[h.id]} {placesByHood[h.id] === 1 ? 'place' : 'places'} to try</small>
-                        </span>
-                        <Icon name="next" size={16} />
-                      </button>
-                    </li>
-                  );
-                })}
-                {challenge && (
-                  <li>
-                    <button onClick={() => onGo('explore')}>
-                      <span className="next-ico"><Icon name="medal" size={18} /></span>
-                      <span>
-                        <b>{challenge.name} · {challenge.value} / {challenge.next_target}</b>
-                        <small>{challenge.description}</small>
-                      </span>
-                      <Icon name="next" size={16} />
-                    </button>
-                  </li>
-                )}
-              </ul>
-            </section>
-          )}
-
+        {/* On wide screens the journey sits in the right column beside the pets and the activity feed. */}
+        <>
           {/* ---------- Your Boston journey ---------- */}
-          <section aria-label="Your Boston journey">
-            <div className="row-head">
-              <h2>Your Boston journey</h2>
+          <section className="card area-journey">
+            <div className="sec-head">
+              <h2>Your Boston Journey</h2>
               <button className="sec-link" onClick={() => onGo('explore')}>Open map</button>
             </div>
             <JourneyMap
@@ -293,11 +189,51 @@ export default function HomePage({ version, user, profile, onOpenPet, onGo, onEx
               hoodIds={visited.map((h) => h.id)}
               onSelectPlace={(id) => onExplore({ type: 'place', id })}
             />
+            <div className="journey-bar">
+              <XpBar percent={(100 * visited.length) / hoods.length} label="Neighborhoods explored" />
+              <span><b>{visited.length}</b> of {hoods.length} neighborhoods explored</span>
+            </div>
+            <button className="mini-lines" onClick={() => onGo('stamps')} aria-label="Open station stamps">
+              {stamps.lines.map((line) => (
+                <span key={line.id} className="mini-line">
+                  <span className="mini-line-top">
+                    <b style={{ background: line.color }} />
+                    {line.id}
+                    {line.tier !== 'none' && <em style={{ background: TIER_COLORS[line.tier] }}>{line.tier}</em>}
+                  </span>
+                  <XpBar percent={line.percent} color={line.color} label={`${line.name} stations stamped`} />
+                  <small>{line.stamped} / {line.total}</small>
+                </span>
+              ))}
+            </button>
+
+            {nextUp.length > 0 && (
+              <>
+                <h3 className="label">Where next</h3>
+                <ul className="next-list">
+                  {nextUp.map((h) => {
+                    const pet = pets.find((p) => p.id === h.pet_id);
+                    return (
+                      <li key={h.id}>
+                        <button onClick={() => exploreHood(h.id)}>
+                          <PetArt pet={pet} tint="#d9d9d9" locked />
+                          <span>
+                            <b>{h.name}</b>
+                            <small>A new pet lives here · {placesByHood[h.id]} {placesByHood[h.id] === 1 ? 'place' : 'places'} to try</small>
+                          </span>
+                          <Icon name="next" size={16} />
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            )}
           </section>
 
           {/* ---------- Recent activity ---------- */}
-          <section aria-label="Recent activity">
-            <div className="row-head">
+          <section className="card area-activity">
+            <div className="sec-head">
               <h2>Recent activity</h2>
               {journal.entries.length > 0 && <button className="sec-link" onClick={() => onGo('dex')}>My Dex</button>}
             </div>
@@ -334,7 +270,7 @@ export default function HomePage({ version, user, profile, onOpenPet, onGo, onEx
               </>
             )}
           </section>
-        </div>
+        </>
       </div>
     </div>
   );

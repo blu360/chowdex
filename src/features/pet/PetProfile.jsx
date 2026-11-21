@@ -12,17 +12,16 @@ import {
   setActivePet,
   setPetNickname,
 } from '../../lib/api.js';
-import { Icon, LevelPill, LevelTrack, Stars, XpBar } from '../../components/ui.jsx';
+import { Icon, LevelPill, LevelTrack, PetArt, Stars, XpBar } from '../../components/ui.jsx';
 import { boundsOfFeature, boundsOfPoints, formatDate, formatFullDate, listNames, petProgress, titleCase } from '../../lib/game.js';
 import JourneyMap from '../map/JourneyMap.jsx';
 import { loreFor } from './petLore.js';
 import { STARTER_TINT, tintsFor } from './PetsPage.jsx';
-import PetStage from './PetStage.jsx';
 
 const EVENT_ICON = { unlocked: 'pets', fed: 'meal', full: 'meal', level_up: 'bolt', badge: 'medal' };
 const HISTORY_PREVIEW = 6;
 const BADGE_PREVIEW = 4;
-const JOURNAL_PREVIEW = 5;
+const JOURNAL_PREVIEW = 3;
 
 /** The pet's origin, written from its real history. */
 function originStory(pet, journal, history) {
@@ -56,7 +55,6 @@ function Fact({ label, children }) {
 /** A collectible character page for one pet. */
 export default function PetProfile({ petId, version, signedIn, onBack, onChange, onExplore, onGo }) {
   const [allJournal, setAllJournal] = useState(false);
-  const [tab, setTab] = useState('about');
   const [data, setData] = useState(null);
   const [missing, setMissing] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -98,7 +96,6 @@ export default function PetProfile({ petId, version, signedIn, onBack, onChange,
     setAllHistory(false);
     setAllBadges(false);
     setAllJournal(false);
-    setTab('about');
     setError(null);
   }, [petId]);
 
@@ -146,25 +143,22 @@ export default function PetProfile({ petId, version, signedIn, onBack, onChange,
     const here = places.filter((p) => p.neighborhood?.id === pet.neighborhood.id);
     return (
       <div className="page paper">
-        <div className="page-inner character locked-view rise">
-          <div className="character-stage">
-            <PetStage pet={pet} tint={tint} size="profile" locked>
-              <button className="back-btn on-stage" onClick={onBack}><Icon name="back" size={18} />All pets</button>
-            </PetStage>
-            <div className="plate center">
-              <p className="plate-name mystery">???</p>
-              <p className="plate-sub"><Icon name="pin" size={13} /> Lives in {pet.neighborhood.name}</p>
-              <p className="locked-hint">
-                Someone lives in {pet.neighborhood.name}. Log your first meal there and it will join you.
-              </p>
-              <button className="btn btn-solid" onClick={exploreHome}>Explore {pet.neighborhood.name}</button>
-              <p className="muted small">
-                {here.length
-                  ? `${here.length} ${here.length === 1 ? 'place' : 'places'} to try there right now.`
-                  : 'No places are listed there yet.'}
-              </p>
-            </div>
-          </div>
+        <div className="page-inner rise">
+          <button className="back-btn" onClick={onBack}><Icon name="back" size={18} />All pets</button>
+          <section className="profile-hero locked" style={{ '--tint': '#d9d9d9' }}>
+            <PetArt pet={pet} tint="#d9d9d9" locked className="xl" />
+            <h1>???</h1>
+            <p className="pet-species"><Icon name="pin" size={14} />Lives in {pet.neighborhood.name}</p>
+            <p className="locked-hint">
+              Someone lives in {pet.neighborhood.name}. Log your first meal there and it will join you.
+            </p>
+            <button className="btn btn-solid" onClick={exploreHome}>Explore {pet.neighborhood.name}</button>
+            <p className="muted small">
+              {here.length
+                ? `${here.length} ${here.length === 1 ? 'place' : 'places'} to try there right now.`
+                : 'No places are listed there yet.'}
+            </p>
+          </section>
         </div>
       </div>
     );
@@ -197,23 +191,17 @@ export default function PetProfile({ petId, version, signedIn, onBack, onChange,
     });
   };
 
-  const TABS = [
-    { id: 'about', label: 'About' },
-    { id: 'journey', label: 'Journey' },
-    { id: 'badges', label: `Badges ${earned.length}/${badges.length}` },
-    { id: 'meals', label: `Meals ${journal.stats.meals}` },
-  ];
-
   return (
     <div className="page paper">
-      <div className="page-inner character rise">
-        {/* The character: its scene, its name, and how it is growing */}
-        <div className="character-stage">
-          <PetStage pet={pet} tint={tint} size="profile">
-            <button className="back-btn on-stage" onClick={onBack}><Icon name="back" size={18} />All pets</button>
-          </PetStage>
+      <div className="page-inner rise">
+        <button className="back-btn" onClick={onBack}><Icon name="back" size={18} />All pets</button>
 
-          <div className="plate center">
+        <div className="profile">
+          {/* Character card */}
+          <section className="profile-hero" style={{ '--tint': tint }}>
+            {pet.active && <span className="buddy-tag">Your buddy</span>}
+            <PetArt pet={pet} tint={tint} className="xl" />
+
             {editing ? (
               <form className="nickname-form" onSubmit={saveNickname}>
                 <input
@@ -228,74 +216,74 @@ export default function PetProfile({ petId, version, signedIn, onBack, onChange,
                 <button type="button" className="btn btn-small" onClick={() => { setEditing(false); setNickname(pet.nickname ?? ''); }}>Cancel</button>
               </form>
             ) : (
-              <h1 className="plate-name big">
+              <h1>
                 {pet.display_name}
                 {signedIn && (
                   <button className="edit-name" onClick={() => setEditing(true)} aria-label={pet.nickname ? 'Change nickname' : 'Give a nickname'}>
-                    <Icon name="pencil" size={15} />
+                    <Icon name="pencil" size={16} />
                   </button>
                 )}
               </h1>
             )}
-            <p className="plate-sub">
-              {pet.name} <span aria-hidden="true">·</span> {pet.is_starter ? 'Your starter' : `From ${pet.neighborhood.name}`}
-              {pet.active && <span className="buddy-tag">Buddy</span>}
+            <p className="pet-species">
+              {pet.is_starter ? 'Starter' : 'Neighborhood pet'} <span aria-hidden="true">·</span> {pet.name} <span aria-hidden="true">·</span> <LevelPill level={pet.level} max={pet.max_level} />
             </p>
 
-            <div className="plate-xp wide">
-              <LevelPill level={pet.level} max={pet.max_level} />
+            <div className="hero-xp">
               <XpBar percent={progress.percent} label="XP toward the next level" />
               <span>{progress.label}</span>
             </div>
-            <LevelTrack pet={pet} color={tint} />
+            <LevelTrack pet={pet} />
 
-            <div className="plate-actions">
-              {signedIn && !pet.active && (
-                <button className="btn btn-solid" disabled={busy} onClick={() => run(() => setActivePet(pet.id))}>
-                  Make my buddy
-                </button>
-              )}
-              {hoodFeature && (
-                <button className="btn" onClick={exploreHome}>Find food in {pet.neighborhood.name}</button>
-              )}
-            </div>
-            {error && <p className="error">{error}</p>}
-          </div>
-        </div>
+            <dl className="facts-row">
+              <Fact label="Discovered">
+                {pet.is_starter ? 'With you from the start' : formatFullDate(pet.unlocked_at)}
+              </Fact>
+              <Fact label="From">
+                {pet.is_starter ? 'Everywhere in Boston' : pet.neighborhood.name}
+              </Fact>
+            </dl>
 
-        <div className="character-body">
-          <div className="seg" role="tablist" aria-label={`About ${pet.display_name}`}>
-            {TABS.map((t) => (
-              <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? 'on' : undefined} onClick={() => setTab(t.id)}>
-                {t.label}
+            {signedIn && !pet.active && (
+              <button className="btn btn-solid" disabled={busy} onClick={() => run(() => setActivePet(pet.id))}>
+                Make {pet.display_name} my buddy
               </button>
-            ))}
-          </div>
+            )}
+            {hoodFeature && (
+              <button className="btn" onClick={exploreHome}>Find food in {pet.neighborhood.name}</button>
+            )}
+            {error && <p className="error">{error}</p>}
+          </section>
 
-          {tab === 'about' && (
-            <div className="tab-panel" key="about">
-              <p className="lead">{lore.blurb}</p>
+          <div className="profile-body">
+            {/* Stats */}
+            <section className="card">
+              <h2 className="card-title">Stats</h2>
+              <div className="stat-grid">
+                <div className="stat"><b>{pet.xp}</b><span>Total XP</span></div>
+                <div className="stat"><b>{placeIds.length}</b><span>Restaurants</span></div>
+                <div className="stat"><b>{stampedStations.length}</b><span>Stations stamped</span></div>
+                <div className="stat"><b>{hoodIds.length}</b><span>{hoodIds.length === 1 ? 'Neighborhood' : 'Neighborhoods'}</span></div>
+                <div className="stat"><b>{earned.length}<i> / {badges.length}</i></b><span>Badges</span></div>
+                <div className="stat"><b>{journal.stats.photos}</b><span>Photos</span></div>
+              </div>
+            </section>
+
+            {/* Origin and personality */}
+            <section className="card">
+              <h2 className="card-title">Origin story</h2>
+              <p className="story">{originStory(pet, journal, history)}</p>
+
+              <h2 className="card-title spaced">Personality</h2>
+              <p className="story">{lore.blurb}</p>
               <ul className="traits">
                 {lore.traits.map((t) => <li key={t}>{t}</li>)}
               </ul>
-
-              <h2 className="h-rule">Origin</h2>
-              <p className="story">{originStory(pet, journal, history)}</p>
-              <dl className="facts-row">
-                <Fact label="Discovered">
-                  {pet.is_starter ? 'With you from the start' : formatFullDate(pet.unlocked_at)}
-                </Fact>
-                <Fact label="Home">
-                  {pet.is_starter ? 'Everywhere in Boston' : pet.neighborhood.name}
-                </Fact>
-              </dl>
-
-              <h2 className="h-rule">Favorites</h2>
               <dl className="favorites">
-                <Fact label="Cuisine">
+                <Fact label="Favorite cuisine">
                   {topCuisine ? titleCase(topCuisine.cuisine) : <span className="muted">Still deciding</span>}
                 </Fact>
-                <Fact label="Restaurant">
+                <Fact label="Favorite restaurant">
                   {favorite ? (
                     <>
                       {favorite.place.name} <Stars value={favorite.my_rating} />
@@ -308,56 +296,14 @@ export default function PetProfile({ petId, version, signedIn, onBack, onChange,
                   <Fact label="Recently ate">{journal.stats.recent_dishes.slice(0, 3).join(', ')}</Fact>
                 )}
               </dl>
+            </section>
 
-              <h2 className="h-rule">Stats</h2>
-              <dl className="stat-line">
-                <div><dd>{pet.xp}</dd><dt>Total XP</dt></div>
-                <div><dd>{placeIds.length}</dd><dt>Restaurants</dt></div>
-                <div><dd>{stampedStations.length}</dd><dt>Stations</dt></div>
-                <div><dd>{hoodIds.length}</dd><dt>{hoodIds.length === 1 ? 'Area' : 'Areas'}</dt></div>
-                <div><dd>{earned.length}<i>/{badges.length}</i></dd><dt>Badges</dt></div>
-                <div><dd>{journal.stats.photos}</dd><dt>Photos</dt></div>
-              </dl>
-            </div>
-          )}
-
-          {tab === 'journey' && (
-            <div className="tab-panel" key="journey">
-              {history.length === 0 ? (
-                <p className="muted">
-                  No adventures yet. {signedIn ? 'Log a meal on the Explore map to get started.' : 'Sign in or load the demo data to get started.'}
-                </p>
-              ) : (
-                <>
-                  <JourneyMap
-                    version={version}
-                    hoodIds={hoodIds}
-                    placeIds={placeIds}
-                    bounds={boundsOfPoints(visitedPlaces)}
-                    onSelectPlace={(id) => onExplore({ type: 'place', id })}
-                    label={`Where ${pet.display_name} has been`}
-                  />
-                  <ol className="timeline">
-                    {shownHistory.map((ev, i) => (
-                      <li key={`${ev.type}-${ev.entry_id}-${i}`} className={`ev ev-${ev.type}`}>
-                        <span className="ev-ico"><Icon name={EVENT_ICON[ev.type]} size={15} /></span>
-                        <p>{ev.text}</p>
-                        <time dateTime={ev.at}>{formatDate(ev.at)}</time>
-                      </li>
-                    ))}
-                  </ol>
-                  {history.length > HISTORY_PREVIEW && (
-                    <button className="more-btn" onClick={() => setAllHistory((v) => !v)}>
-                      {allHistory ? 'Show less' : `Show all ${history.length} moments`}
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-
-          {tab === 'badges' && (
-            <div className="tab-panel" key="badges">
+            {/* Milestones */}
+            <section className="card">
+              <div className="sec-head">
+                <h2 className="card-title">Milestones</h2>
+                <span className="muted small">{earned.length} of {badges.length} badges</span>
+              </div>
               <ul className="badge-list">
                 {shownBadges.map((b) => {
                   const target = b.next_target ?? b.tiers[b.tiers.length - 1];
@@ -386,11 +332,16 @@ export default function PetProfile({ petId, version, signedIn, onBack, onChange,
                   {allBadges ? 'Show fewer' : `Show all ${sortedBadges.length}`}
                 </button>
               )}
-            </div>
-          )}
+            </section>
 
-          {tab === 'meals' && (
-            <div className="tab-panel" key="meals">
+            {/* Food journal: the meals that fed this pet */}
+            <section className="card">
+              <div className="sec-head">
+                <h2 className="card-title">Food journal</h2>
+                {onGo && journal.entries.length > 0 && (
+                  <button className="sec-link" onClick={() => onGo('dex')}>Edit in My Dex</button>
+                )}
+              </div>
               {journal.entries.length === 0 ? (
                 <p className="muted">No meals logged for {pet.display_name} yet.</p>
               ) : (
@@ -423,11 +374,48 @@ export default function PetProfile({ petId, version, signedIn, onBack, onChange,
                       {allJournal ? 'Show fewer' : `Show all ${journal.entries.length} meals`}
                     </button>
                   )}
-                  {onGo && <button className="sec-link" onClick={() => onGo('dex')}>Edit in My Dex</button>}
                 </>
               )}
-            </div>
-          )}
+            </section>
+
+            {/* Exploration history */}
+            <section className="card">
+              <div className="sec-head">
+                <h2 className="card-title">Exploration history</h2>
+                <span className="muted small">{journal.stats.meals} {journal.stats.meals === 1 ? 'meal' : 'meals'}</span>
+              </div>
+              {history.length === 0 ? (
+                <p className="muted">
+                  No adventures yet. {signedIn ? 'Log a meal on the Explore map to get started.' : 'Sign in or load the demo data to get started.'}
+                </p>
+              ) : (
+                <>
+                  <JourneyMap
+                    version={version}
+                    hoodIds={hoodIds}
+                    placeIds={placeIds}
+                    bounds={boundsOfPoints(visitedPlaces)}
+                    onSelectPlace={(id) => onExplore({ type: 'place', id })}
+                    label={`Where ${pet.display_name} has been`}
+                  />
+                  <ol className="timeline">
+                    {shownHistory.map((ev, i) => (
+                      <li key={`${ev.type}-${ev.entry_id}-${i}`} className={`ev ev-${ev.type}`}>
+                        <span className="ev-ico"><Icon name={EVENT_ICON[ev.type]} size={15} /></span>
+                        <p>{ev.text}</p>
+                        <time dateTime={ev.at}>{formatDate(ev.at)}</time>
+                      </li>
+                    ))}
+                  </ol>
+                  {history.length > HISTORY_PREVIEW && (
+                    <button className="more-btn" onClick={() => setAllHistory((v) => !v)}>
+                      {allHistory ? 'Show less' : `Show all ${history.length} moments`}
+                    </button>
+                  )}
+                </>
+              )}
+            </section>
+          </div>
         </div>
       </div>
     </div>
