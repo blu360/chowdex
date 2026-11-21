@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { getPlace, getDex, addToDex, getFeedingStatus, getStamps, getStations } from '../../lib/api.js';
 import { LINE_COLORS } from '../../lib/lines.js';
 import { shrinkPhoto } from '../../lib/image.js';
+import DirectionsPanel from './DirectionsPanel.jsx';
 
 export function LineChips({ lines }) {
   return (
@@ -13,7 +14,8 @@ export function LineChips({ lines }) {
   );
 }
 
-export default function PlaceCard({ placeId, signedIn, onClose, onDexChange, onSignIn }) {
+export default function PlaceCard({ placeId, signedIn, onClose, onDexChange, onSignIn, onRoute, onTripLogged }) {
+  const [showDirections, setShowDirections] = useState(false);
   const [place, setPlace] = useState(null);
   const [status, setStatus] = useState('loading');
   const [collected, setCollected] = useState(false);
@@ -28,6 +30,7 @@ export default function PlaceCard({ placeId, signedIn, onClose, onDexChange, onS
   useEffect(() => {
     let cancelled = false;
     setStatus('loading');
+    setShowDirections(false);
     setMessage(null);
     setDish('');
     setRating(0);
@@ -108,20 +111,25 @@ export default function PlaceCard({ placeId, signedIn, onClose, onDexChange, onS
           </dl>
 
           <div className="actions">
-            <a
-              className="btn"
-              target="_blank"
-              rel="noreferrer"
-              href={`https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}&travelmode=transit`}
-            >
-              Directions by T
-            </a>
+            <button className={showDirections ? 'btn btn-primary' : 'btn'} aria-expanded={showDirections} onClick={() => setShowDirections((v) => !v)}>
+              Directions
+            </button>
             {place.website && (
               <a className="btn btn-ghost" target="_blank" rel="noreferrer" href={place.website}>
                 Website
               </a>
             )}
+            <a
+              className="btn btn-ghost"
+              target="_blank"
+              rel="noreferrer"
+              title="Open in Google Maps"
+              href={`https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}&travelmode=transit`}
+            >
+              Google Maps
+            </a>
           </div>
+          {showDirections && <DirectionsPanel placeId={placeId} onRoute={onRoute ?? (() => {})} onLogged={onTripLogged} />}
 
           <hr />
           {collected ? (

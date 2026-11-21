@@ -8,6 +8,7 @@
  * without hitting the database.
  */
 import { PET_LEVEL_XP, PET_MAX_LEVEL, petLevelFromXp } from './mock/petEngine.js';
+import { arrivalsQuery, parseArrivals } from './mbtaLive.js';
 
 const BUCKET = 'dex-photos';
 const PHOTO_URL_SECONDS = 3600;
@@ -312,24 +313,7 @@ export function createSupabaseApi({ apiError, levelFromXp, tierFromPercent, dail
 
     async getArrivals(stopId) {
       try {
-        const json = await fetchMbta(
-          `predictions?filter%5Bstop%5D=${encodeURIComponent(stopId)}&include=route&sort=arrival_time&page%5Blimit%5D=30`,
-        );
-        const routes = Object.fromEntries((json.included ?? []).filter((i) => i.type === 'route').map((r) => [r.id, r]));
-        const now = Date.now();
-        const seen = new Map();
-        for (const p of json.data) {
-          const time = p.attributes.arrival_time ?? p.attributes.departure_time;
-          const route = routes[p.relationships.route.data.id];
-          if (!time || !route) continue;
-          const minutes = Math.round((new Date(time).getTime() - now) / 60000);
-          if (minutes < 0) continue;
-          const line = route.id.startsWith('Green') ? 'Green' : route.id;
-          const direction = route.attributes.direction_destinations?.[p.attributes.direction_id] ?? '';
-          const key = `${line}|${direction}`;
-          if (!seen.has(key) || minutes < seen.get(key).minutes) seen.set(key, { route: `${line} Line`, direction, minutes });
-        }
-        return [...seen.values()].sort((a, b) => a.minutes - b.minutes);
+        return parseArrivals(await fetchMbta(arrivalsQuery(stopId)));
       } catch {
         return [];
       }

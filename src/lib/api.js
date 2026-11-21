@@ -14,6 +14,9 @@ import mbta from './mock/mbta.json';
 import neighborhoods from './mock/neighborhoods.json';
 import { createPetEngine, DAILY_FEED_LIMIT, PET_LEVEL_XP, PET_MAX_LEVEL, petLevelFromXp, localParts } from './mock/petEngine.js';
 import { createSupabaseApi } from './supabaseApi.js';
+import { planDirections } from './directions.js';
+import { arrivalsQuery, parseArrivals } from './mbtaLive.js';
+import { addTripFromRoute, listTrips, removeTrip, tallyTrips } from './trips.js';
 
 export { DAILY_FEED_LIMIT, PET_LEVEL_XP, PET_MAX_LEVEL, petLevelFromXp };
 
@@ -253,6 +256,69 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
  */
 
 /**
+ * One step of a route. `type` is "board" (wait for a train), "ride", "transfer", or "walk".
+ * @typedef {Object} DirectionsLeg
+ * @property {'board'|'ride'|'transfer'|'walk'} type
+ * @property {number} minutes
+ * @property {string} [line]          Red, Orange, Blue, Green
+ * @property {string} [line_name]     e.g. "Red Line"
+ * @property {string} [color]
+ * @property {{id?: string, name: string}} [from]
+ * @property {{id?: string, name: string}} [to]
+ * @property {{id: string, name: string}} [at]   board / transfer: the station
+ * @property {number} [stops]         ride: how many stops
+ * @property {number} [distance_m]
+ * @property {number[][]} [coordinates]   [lng, lat] points to draw
+ * @property {'live'|'assumed'} [wait_source]   board: whether the wait comes from the live MBTA feed
+ * @property {boolean} [live]         ride: true when the ride time comes from the live feed
+ * @property {string} [starts_at]     ISO time this step begins
+ * @property {string} [departs_at]    board: ISO time the train leaves
+ * @property {boolean} [estimated]    walk: true when the distance is a straight-line estimate, not a routed path
+ */
+
+/**
+ * @typedef {Object} Directions
+ * @property {'transit'|'walk'} mode   "walk" when the restaurant is close enough to just walk
+ * @property {{id: string|null, name: string, lat: number, lng: number}} from   where the rider starts ("Your location", or a station; id is null for a position)
+ * @property {{id: string, name: string, lat: number, lng: number}} to     the restaurant
+ * @property {DirectionsLeg[]} legs
+ * @property {{minutes: number, transit_miles: number, walk_miles: number, miles: number}} totals
+ * @property {{miles: number, minutes: number, estimated: boolean}} car   the same trip by car (no traffic or parking)
+ * @property {{car_kg: number, transit_kg: number, saved_kg: number, percent: number}} emissions   estimated CO2, see carbon.js
+ * @property {boolean} live   true when the first train's wait and ride time come from the live MBTA feed
+ * @property {string} depart_at   ISO time the trip starts (now)
+ * @property {string} arrive_at   ISO time you get there: the ETA, built from the live times where there are any
+ */
+
+/**
+ * A trip the rider chose to log.
+ * @typedef {Object} Trip
+ * @property {string} id
+ * @property {string} at           ISO time it was logged
+ * @property {string} place_id
+ * @property {string} place_name
+ * @property {string} from_name
+ * @property {'transit'|'walk'} mode
+ * @property {number} transit_miles
+ * @property {number} walk_miles
+ * @property {number} car_miles    what driving would have been
+ * @property {number} co2_kg
+ * @property {number} co2_saved_kg
+ * @property {number} minutes
+ */
+
+/**
+ * @typedef {Object} TripTally
+ * @property {number} trips
+ * @property {number} miles                miles travelled by train and on foot
+ * @property {number} transit_miles
+ * @property {number} walk_miles
+ * @property {number} car_miles_avoided
+ * @property {number} co2_saved_kg
+ * @property {number} co2_kg
+ */
+
+/**
  * @typedef {Object} StampSummary
  * @property {Object<string, string[]>} by_station   station id -> ids of the dex places that stamped it;
  *                                                    only stamped stations appear
@@ -367,13 +433,6 @@ function fileToDataUrl(file) {
 }
 
 const stripDetails = ({ details, ...place }) => place;
-
-const MOCK_DIRECTIONS = {
-  Red: ['Alewife', 'Braintree'],
-  Orange: ['Oak Grove', 'Forest Hills'],
-  Green: ['Westbound', 'Lechmere'],
-  Blue: ['Bowdoin', 'Wonderland'],
-};
 
 function isSignedIn() {
   return readStore(SIGNED_IN_KEY, false) === true;
@@ -592,22 +651,18 @@ const mockApi = {
     return place;
   },
 
-  /** @param {string} stopId @returns {Promise<Arrival[]>} */
+  /**
+   * Upcoming subway trains at a station, from the live MBTA predictions feed (real times, in mock mode too).
+   * An empty list means no trains are running (or the feed could not be reached).
+   * @param {string} stopId @returns {Promise<Arrival[]>}
+   */
   async getArrivals(stopId) {
-    await delay();
-    const station = mbta.stations.find((s) => s.id === stopId);
-    if (!station) return [];
-    const arrivals = [];
-    station.lines.forEach((lineName, i) => {
-      (MOCK_DIRECTIONS[lineName] || []).forEach((direction, j) => {
-        arrivals.push({
-          route: `${lineName} Line`,
-          direction,
-          minutes: 2 + ((i * 3 + j * 4 + stopId.length) % 9),
-        });
-      });
-    });
-    return arrivals.sort((a, b) => a.minutes - b.minutes);
+    if (!mbta.stations.some((s) => s.id === stopId)) return [];
+    try {
+      return parseArrivals(await fetchMbtaJson(arrivalsQuery(stopId)));
+    } catch {
+      return [];
+    }
   },
 
   /** @returns {Promise<Line[]>} the four subway lines with colors and map shapes */
@@ -1067,9 +1122,67 @@ export const IS_MOCK = USE_MOCK;
  * Public API
  * ------------------------------------------------------------------------- */
 
-const impl = USE_MOCK ? mockApi : realApi;
+const base = USE_MOCK ? mockApi : realApi;
+
+/**
+ * Directions and the green-trips log work the same in both modes: the route planner runs in the browser on the
+ * bundled MBTA data, and the trip log lives in the browser (see src/lib/trips.js).
+ */
+const greenApi = {
+  /**
+   * How to get to a restaurant by train and on foot, with real MBTA times for the first train and a carbon
+   * comparison against driving. The rider's position stays in the browser; the public walking/driving router only
+   * ever sees it blurred to about 100 m.
+   * @param {string} placeId
+   * @param {{lat: number, lng: number} | {stationId: string}} origin   the rider's current position, or a station
+   *        to start from instead (e.g. when location is off): `{ stationId: "place-harsq" }`
+   * @returns {Promise<Directions>}
+   * @throws NOT_FOUND, INVALID
+   */
+  async getDirections(placeId, origin) {
+    const place = await base.getPlace(placeId);
+    try {
+      return await planDirections({ mbta, place, origin, fetchMbta: fetchMbtaJson });
+    } catch (err) {
+      if (err.code === 'NOT_FOUND') throw apiError('NOT_FOUND', err.message);
+      if (err.code === 'INVALID') throw apiError('INVALID', err.message);
+      throw err;
+    }
+  },
+
+  /**
+   * Record a trip the rider took. Only called when they tap "I took this trip".
+   * @param {Directions} route
+   * @returns {Promise<Trip>}
+   */
+  async logTrip(route) {
+    return addTripFromRoute(route);
+  },
+
+  /** @returns {Promise<Trip[]>} newest first */
+  async getTrips() {
+    return listTrips();
+  },
+
+  /** @throws NOT_FOUND */
+  async deleteTrip(tripId) {
+    if (!removeTrip(tripId)) throw apiError('NOT_FOUND', `Trip not found: ${tripId}`);
+  },
+
+  /** @returns {Promise<TripTally>} */
+  async getTripTally() {
+    return tallyTrips();
+  },
+};
+
+const impl = { ...base, ...greenApi };
 
 export const {
+  getDirections,
+  logTrip,
+  getTrips,
+  deleteTrip,
+  getTripTally,
   getPlaces,
   getPlace,
   getArrivals,

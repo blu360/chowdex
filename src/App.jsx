@@ -74,6 +74,7 @@ export default function App() {
   const [route, go] = useRoute();
   const tab = route.tab;
   const [selected, setSelected] = useState(null); // { type: 'place' | 'station', id }
+  const [directionsRoute, setDirectionsRoute] = useState(null); // the directions route drawn on the map (GeoJSON), or null
   const [version, setVersion] = useState(0);
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -110,6 +111,7 @@ export default function App() {
     if (tab !== 'explore') {
       setSelected(null);
       setFocus(null);
+      setDirectionsRoute(null);
     }
   }, [tab]);
 
@@ -300,6 +302,7 @@ export default function App() {
               onSelectPlace={selectPlace}
               onSelectStation={selectStation}
               onTrainsInfo={setTrainsInfo}
+              route={directionsRoute}
             />
             <SearchPanel
               filters={filters}
@@ -319,6 +322,8 @@ export default function App() {
                 onClose={() => setSelected(null)}
                 onDexChange={onDexChange}
                 onSignIn={onSignIn}
+                onRoute={setDirectionsRoute}
+                onTripLogged={bump}
               />
             )}
             {selected?.type === 'station' && (

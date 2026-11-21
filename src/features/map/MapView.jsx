@@ -170,6 +170,41 @@ function installLayers(map, { data, dark, layers }) {
     paint: { 'line-color': ['get', 'color'], 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.5, 15, 6] },
   });
 
+  // A directions route: train segments in their line color with a dark outline, and walking as a dashed line.
+  map.addSource('route', { type: 'geojson', data: data.route });
+  const isRide = ['==', ['get', 'kind'], 'ride'];
+  const isWalk = ['==', ['get', 'kind'], 'walk'];
+  map.addLayer({
+    id: 'route-casing',
+    type: 'line',
+    source: 'route',
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': ['case', isRide, dark ? '#0a1526' : INK, dark ? '#0a1526' : '#ffffff'],
+      'line-width': ['interpolate', ['linear'], ['zoom'], 10, ['case', isRide, 8, 6], 16, ['case', isRide, 16, 11]],
+    },
+  });
+  map.addLayer({
+    id: 'route-ride',
+    type: 'line',
+    source: 'route',
+    filter: isRide,
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': ['get', 'color'], 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 4, 16, 10] },
+  });
+  map.addLayer({
+    id: 'route-walk',
+    type: 'line',
+    source: 'route',
+    filter: isWalk,
+    layout: { 'line-join': 'round' },
+    paint: {
+      'line-color': dark ? '#dbe7fb' : INK,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.5, 16, 5],
+      'line-dasharray': [1.1, 1.5],
+    },
+  });
+
   map.addLayer({
     id: 'neighborhood-labels',
     type: 'symbol',
@@ -282,11 +317,12 @@ export default function MapView({
   onSelectPlace,
   onSelectStation,
   onTrainsInfo,
+  route = null, // optional: a directions route as GeoJSON (see routeToGeoJSON), drawn on top of the lines
   journey = null, // optional: { hoodIds: string[], placeIds: string[]|null } turns this into a small "where I've been" map
 }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
-  const dataRef = useRef({ routes: [], neighborhoods: EMPTY, stations: EMPTY, places: EMPTY, trains: EMPTY });
+  const dataRef = useRef({ routes: [], neighborhoods: EMPTY, stations: EMPTY, places: EMPTY, trains: EMPTY, route: EMPTY });
   const lineColorsRef = useRef({});
   const tracksRef = useRef([]);
   const hoveredRef = useRef(null);
@@ -583,6 +619,31 @@ export default function MapView({
     }
     return () => clearTimeout(creditsTimer);
   }, [ready, journeyKey]);
+
+  // Directions route: draw it, and frame the whole trip.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map) return;
+    const fc = route ?? EMPTY;
+    dataRef.current.route = fc;
+    map.getSource('route')?.setData(fc);
+    if (!route?.features.length || latest.current.journey) return;
+    let west = Infinity, south = Infinity, east = -Infinity, north = -Infinity;
+    for (const f of route.features) {
+      for (const [lng, lat] of f.geometry.coordinates) {
+        west = Math.min(west, lng); east = Math.max(east, lng);
+        south = Math.min(south, lat); north = Math.max(north, lat);
+      }
+    }
+    // Leave room for the search panel on the left and the place card on the right, but never so much that nothing fits.
+    const width = window.innerWidth;
+    const wide = width > 800;
+    const side = wide ? Math.min(400, Math.round(width * 0.3)) : 40;
+    // The map keeps whatever padding an earlier "fly to" set, and fitBounds adds to it, so set it here once and
+    // use only a small extra margin (otherwise the two together can leave no room and the move is skipped).
+    map.setPadding({ top: 40, bottom: wide ? 40 : 280, left: side, right: side });
+    map.fitBounds([[west, south], [east, north]], { padding: 24, maxZoom: 15.5, duration: 900 });
+  }, [ready, route]);
 
   // Fly to a search result
   useEffect(() => {
