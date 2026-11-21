@@ -18,7 +18,6 @@ import JourneyMap from '../map/JourneyMap.jsx';
 import { loreFor } from './petLore.js';
 import { STARTER_TINT, tintsFor } from './PetsPage.jsx';
 import PetStage from './PetStage.jsx';
-import { petVoice } from './petVoice.js';
 
 const EVENT_ICON = { unlocked: 'pets', fed: 'meal', full: 'meal', level_up: 'bolt', badge: 'medal' };
 const HISTORY_PREVIEW = 6;
@@ -189,7 +188,6 @@ export default function PetProfile({ petId, version, signedIn, onBack, onChange,
   const shownBadges = allBadges ? sortedBadges : sortedBadges.slice(0, BADGE_PREVIEW);
   const shownHistory = allHistory ? history : history.slice(0, HISTORY_PREVIEW);
   const shownJournal = allJournal ? journal.entries : journal.entries.slice(0, JOURNAL_PREVIEW);
-  const voice = petVoice({ pet, signedIn, entries: journal.entries });
 
   const saveNickname = (e) => {
     e.preventDefault();
@@ -211,7 +209,7 @@ export default function PetProfile({ petId, version, signedIn, onBack, onChange,
       <div className="page-inner character rise">
         {/* The character: its scene, its name, and how it is growing */}
         <div className="character-stage">
-          <PetStage pet={pet} tint={tint} size="profile" lines={voice.lines} mood={voice.mood}>
+          <PetStage pet={pet} tint={tint} size="profile">
             <button className="back-btn on-stage" onClick={onBack}><Icon name="back" size={18} />All pets</button>
           </PetStage>
 
@@ -331,16 +329,14 @@ export default function PetProfile({ petId, version, signedIn, onBack, onChange,
                 </p>
               ) : (
                 <>
-                  <div className="pinned-map">
-                    <JourneyMap
-                      version={version}
-                      hoodIds={hoodIds}
-                      placeIds={placeIds}
-                      bounds={boundsOfPoints(visitedPlaces)}
-                      onSelectPlace={(id) => onExplore({ type: 'place', id })}
-                      label={`Where ${pet.display_name} has been`}
-                    />
-                  </div>
+                  <JourneyMap
+                    version={version}
+                    hoodIds={hoodIds}
+                    placeIds={placeIds}
+                    bounds={boundsOfPoints(visitedPlaces)}
+                    onSelectPlace={(id) => onExplore({ type: 'place', id })}
+                    label={`Where ${pet.display_name} has been`}
+                  />
                   <ol className="timeline">
                     {shownHistory.map((ev, i) => (
                       <li key={`${ev.type}-${ev.entry_id}-${i}`} className={`ev ev-${ev.type}`}>

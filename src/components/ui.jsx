@@ -156,31 +156,3 @@ export function LineDots({ lines, colors }) {
     </span>
   );
 }
-
-/**
- * A circular progress ring with something in the middle (a number, an icon, a pet).
- * The ring draws itself in when it appears.
- */
-export function Ring({ percent, size = 56, stroke = 6, color, children, label }) {
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const p = Math.max(0, Math.min(100, percent));
-  return (
-    <span className="ring" style={{ width: size, height: size, ...(color ? { '--fill': color } : null) }} role="img" aria-label={label}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true" focusable="false">
-        <circle className="ring-track" cx={size / 2} cy={size / 2} r={r} strokeWidth={stroke} />
-        <circle
-          className="ring-fill"
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          strokeWidth={stroke}
-          strokeDasharray={c}
-          style={{ '--c': c, strokeDashoffset: c * (1 - p / 100) }}
-          transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        />
-      </svg>
-      <span className="ring-inner">{children}</span>
-    </span>
-  );
-}
