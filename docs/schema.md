@@ -75,10 +75,13 @@ A user's collected places. Users can only read and write their own rows.
 | `id` | uuid, PK | |
 | `user_id` | uuid, FK to `profiles.id` | |
 | `place_id` | uuid, FK to `places.id` | unique together with `user_id` |
-| `favorite_dish` | text, nullable | |
+| `favorite_dish` | text, nullable | up to 80 characters |
 | `my_rating` | int, nullable | 1 to 5, the user's own rating |
+| `note` | text, nullable | free-text journal note, up to 280 characters |
 | `photo_path` | text, nullable | path in the `dex-photos` storage bucket |
-| `visited_at` | timestamptz | |
+| `visited_at` | timestamptz | set by the server when the meal is logged (never by the client), so history can't be backdated |
+
+This table is the food journal. Feeding, levels, badges, and history are all derived from it, so nothing about them is stored.
 
 ### `mbta_stops`
 Reference data. Public read, no client writes.
@@ -139,32 +142,71 @@ See the JSDoc typedefs at the top of `src/lib/api.js` for `DexEntry`, `Profile`,
 | `getVehicles({simulate})` | `VehicleSnapshot` | live subway trains from the MBTA `/vehicles` feed, only those on the drawn lines. `vehicles` is `null` with `error: true` when the feed is unreachable; `simulate: true` returns made-up, sped-up trains for demos |
 | `getStamps()` | `StampSummary` | station stamps and per-line progress, all zeros when signed out |
 | `getDex()` | `DexEntry[]` | `[]` when signed out |
-| `addToDex(placeId, {favoriteDish, myRating, photo})` | `DexEntry` | throws `NOT_SIGNED_IN` or `ALREADY_IN_DEX`. The result has `unlocked_pet` (a `Pet`) when this entry was the first in its neighborhood, else `null` |
-| `getPets()` | `Pet[]` | all 25 pets with `unlocked`, `entries`, `xp`, `level`, `next_level_xp`, `nickname`, `display_name`, and `active`. Signed out: only the starter is unlocked |
+| `addToDex(placeId, {favoriteDish, myRating, note, photo})` | `DexEntry` | logs a meal (this is the feeding). Throws `NOT_SIGNED_IN`, `NOT_FOUND`, or `ALREADY_IN_DEX`. The result also says what the meal did: `fed`, `xp_gained`, `unlocked_pet`, `level_ups`, `new_badges` |
+| `updateDexEntry(entryId, {favoriteDish, myRating, note, photo})` | `DexEntry` | edit a journal entry later; `null` clears a field. Throws `NOT_SIGNED_IN`, `NOT_FOUND`, or `INVALID` (rating not 1 to 5) |
+| `getFeedingStatus()` | `FeedingStatus` | `meals_today`, `fed_today`, `remaining`, `full` (Boston time) |
+| `getPets()` | `Pet[]` | all 25 pets with `unlocked`, `entries`, `xp`, `level`, `max_level`, `next_level_xp`, `badges`, `nickname`, `display_name`, and `active`. Signed out: only the starter is unlocked |
 | `setActivePet(petId)` | `Pet` | throws `NOT_SIGNED_IN`, `NOT_FOUND`, or `NOT_UNLOCKED` |
 | `setPetNickname(petId, nickname)` | `Pet` | trimmed to 24 characters, empty clears it; same errors as `setActivePet` |
+| `getBadges()` | `Badge[]` | all 40 badges with `tier`, `value`, `next_target`, and `tier_earned_at`; includes locked ones so the UI can show progress |
+| `getPetHistory(petId)` | `PetHistoryEvent[]` | the pet's story, newest first; `[]` for a locked pet |
+| `getPetJournal(petId)` | `PetJournal` | the food-journal entries that fed this pet (the starter sees all), with place, dish, rating, photo, XP, and stats |
 | `getNeighborhoodProgress()` | `NeighborhoodProgress[]` | the 24 areas with `entries`, `visited`, and `pet_id`; the dashboard's "7 of 24" is the count of `visited` |
 | `getProfile()` | `Profile` or `null` | `null` when signed out. `pet_name` is the active pet's display name |
 | `getCurrentUser()` | `User` or `null` | |
 | `signInWithGoogle()`, `signOut()` | | |
 
-## Game rules
-
-The trigger on `dex_entries` and the mock in `api.js` must agree:
-
-- +10 XP per dex entry, +5 more if it has a photo
-- `level = floor(sqrt(xp / 10))`, exported as `levelFromXp()` (0 XP is level 0, 10 is level 1, 40 is level 2, 90 is level 3)
-
 ## Pets
 
-25 pets: one per neighborhood plus the starter Boston Terrier (`id: "starter"`). Pets have no preset names: they are called by their animal, and users nickname them. Everything is derived from the dex, so only the active pet and nicknames are stored.
+25 pets: one per neighborhood plus the starter Boston Terrier (`id: "starter"`). Pets have no preset names: they are called by their animal, and users nickname them. The art and the pet-by-neighborhood list are in `public/pets/` (see its README); `src/lib/mock/pets.json` is the API's copy, with `id` set to the neighborhood id.
 
-- A neighborhood's pet **unlocks** with the user's first dex entry in that neighborhood (`places.neighborhood_id`). The starter is always unlocked.
-- A pet's **XP** is the XP from dex entries in its neighborhood (same +10 / +5 rules above), and its **level** is `levelFromXp(xp)`. The starter's XP is the total from all entries.
-- Only an unlocked pet can be made active or nicknamed. If the active pet is somehow no longer unlocked, the starter is active.
-- In SQL this is a `GROUP BY places.neighborhood_id` over the user's `dex_entries`.
+**Design rule: nothing should push anyone to eat out more than they would anyway.** There are no streaks, no hunger, no decay, and nothing is ever lost. Progress is small, capped, and based on when and how you log meals as much as how many.
 
-The full pet-by-neighborhood list, with the art, is in `public/pets/README.md` (`png/`, `svg/`, and a `pets.json` manifest). `src/lib/mock/pets.json` is the API's copy of that list, with `id` set to the neighborhood id.
+The mock logic is `src/lib/mock/petEngine.js`, a pure function of the dex. The real backend does the same in SQL (a view over `dex_entries`).
+
+### 1. Feeding and levels
+
+- **Logging a meal feeds the pets.** Each meal feeds the **starter** (who eats everywhere) and the pet of the **neighborhood** the place is in. A neighborhood's pet **unlocks** with your first meal there.
+- **A meal is 10 XP, +5 with a photo.** Trainer XP and level (`levelFromXp`, `floor(sqrt(xp/10))`) use the same fed meals.
+- **Daily limit: only the first 2 meals per day (Boston time) feed the pets** (`DAILY_FEED_LIMIT`). A third meal is still logged in the journal, can unlock a pet and count toward badges, but gives no XP. So visiting 20 places in a day is worth the same as 2.
+- **Levels are quick and capped at 5.** Cumulative XP for levels 1 to 5 is `10, 20, 40, 60, 90` (`PET_LEVEL_XP`), so a pet is fully grown after about 9 meals in its area. `next_level_xp` is `null` at the max.
+- A place can only be logged once, so revisiting the same spot can't farm XP.
+
+### 2. Badges
+
+40 badges, all derived from the journal. Neighborhood badges are **worn by that neighborhood's pet**; all the others are worn by the **starter**. Targets are deliberately small, and many reward journaling or variety, not volume. A badge with 2 or 3 tiers shows Bronze / Silver / Gold; one tier shows "Earned".
+
+| Category | Badge | What it takes (tiers) |
+|---|---|---|
+| Visits | First Bite | log 1 meal |
+| Visits | Getting Around | 5 / 12 / 25 different places |
+| Where | Neighborhood Hopper | 3 / 6 / 10 different neighborhoods |
+| Where | Both Sides of the River | a place in Boston and one in Cambridge |
+| When | Night Owl | 3 meals after 10 pm |
+| When | Early Bird | 3 meals between 5 and 9 am |
+| When | Weekend Brunch | 3 meals on weekends, 9 am to 2 pm |
+| Journal | Food Diary | 5 / 15 meals with a dish written down |
+| Journal | Photographer | 3 / 10 meals with a photo |
+| Journal | Critic | 5 / 15 meals with a rating |
+| Variety | Taste Tourist | 4 / 8 different cuisines |
+| Variety | Budget Eater | 3 / 8 cheap ($) places |
+| Transit | Red, Orange, Green, Blue Line Rider | stamp 3 stations, then about 30% and 50% of the line (Red 3/5/8, Orange 3/5/8, Green 3/12/20, Blue 3/4/5) |
+| Neighborhood (24) | `<Area>` Regular | 3 different places in that neighborhood (worn by its pet) |
+
+"Late", "early", and "weekend" use Boston time. `getBadges()` returns every badge with `tier`, `value` (progress), `next_target`, and `tier_earned_at` (the meal that crossed each target).
+
+### 3. Pet history
+
+`getPetHistory(petId)` is the pet's story, newest first, rebuilt by replaying the journal in order. Event types: `unlocked` (it joined), `fed` (a meal fed it, with the XP), `full` (a meal was logged but the pets were full that day, no XP), `level_up`, and `badge`. Every event has a ready-to-show `text`, the `at` time, and the `entry_id` and `place` that caused it. The starter's history is every meal; a neighborhood pet's is its own area plus its badge.
+
+### 4. Food journal
+
+The food journal is `dex_entries`, extended with a free-text `note`. `updateDexEntry()` edits an entry later. `getPetJournal(petId)` shows the journal as one pet sees it: each meal that fed it, with the place, dish, rating, note, photo, whether it was `fed`, and the `xp_gained`, plus stats (meals, photos, rated, average rating, top cuisines, recent dishes, first and last meal). Journaling is the thing rewarded most (photo XP, three journal badges), since it is the part people actually want to keep.
+
+### SQL notes
+- `fed` is `row_number() over (partition by user_id, (visited_at at time zone 'America/New_York')::date order by visited_at) <= 2`.
+- Pet XP is `sum(case when fed then 10 + (photo_path is not null)::int * 5 else 0 end)` grouped by `places.neighborhood_id` (and over everything for the starter).
+- Badge values are `count(distinct ...)` or `count(*) filter (where ...)` over the same rows; `tier_earned_at` needs the replay, or a small `pet_events` table written by a trigger if you want it cheap.
 
 ## Station stamps
 

@@ -11,6 +11,9 @@ import rawPlaces from './mock/places.json';
 import pets from './mock/pets.json';
 import mbta from './mock/mbta.json';
 import neighborhoods from './mock/neighborhoods.json';
+import { createPetEngine, DAILY_FEED_LIMIT, PET_LEVEL_XP, PET_MAX_LEVEL, petLevelFromXp, localParts } from './mock/petEngine.js';
+
+export { DAILY_FEED_LIMIT, PET_LEVEL_XP, PET_MAX_LEVEL, petLevelFromXp };
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
 
@@ -57,8 +60,67 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
  * @property {string|null} favorite_dish
  * @property {number|null} my_rating     1 to 5, the user's own rating
  * @property {string|null} photo_url
+ * @property {string|null} note          free-text journal note, up to 280 characters
  * @property {string}      visited_at    ISO timestamp
- * @property {Pet|null}    [unlocked_pet] only on the result of addToDex(): the pet this entry just unlocked, if any
+ *
+ * Only on the result of addToDex() (what logging this meal did):
+ * @property {boolean}     [fed]          false when the pets were already full for the day (the meal is logged, but gives no XP)
+ * @property {number}      [xp_gained]
+ * @property {Pet|null}    [unlocked_pet] the pet this entry just unlocked, if any
+ * @property {{pet_id: string, from: number, to: number}[]} [level_ups]
+ * @property {{badge_id: string, name: string, tier: number, tier_label: string, pet_id: string}[]} [new_badges]
+ */
+
+/**
+ * @typedef {Object} FeedingStatus
+ * @property {number}  daily_limit   meals per day that feed the pets (DAILY_FEED_LIMIT)
+ * @property {number}  meals_today   meals logged today, Boston time
+ * @property {number}  fed_today     min(meals_today, daily_limit)
+ * @property {number}  remaining     feedings left today
+ * @property {boolean} full          the pets are full: more meals are logged but give no XP
+ */
+
+/**
+ * @typedef {Object} Badge
+ * @property {string}      id
+ * @property {string}      name
+ * @property {string}      description
+ * @property {'visits'|'places'|'time'|'journal'|'variety'|'transit'|'neighborhood'} category
+ * @property {string}      pet_id          the pet that wears it: a neighborhood pet for neighborhood badges, otherwise "starter"
+ * @property {number[]}    tiers           what you need for each tier, e.g. [5, 12, 25]
+ * @property {string[]}    tier_labels     "Earned", or "Bronze"/"Silver"/"Gold"
+ * @property {number}      tier            tiers earned so far (0 = not earned)
+ * @property {boolean}     earned          tier > 0
+ * @property {number}      value           progress toward the next target
+ * @property {number|null} next_target     null when every tier is earned
+ * @property {(string|null)[]} tier_earned_at   ISO time each tier was earned, null if not yet
+ */
+
+/**
+ * One thing in a pet's story.
+ * @typedef {Object} PetHistoryEvent
+ * @property {'unlocked'|'fed'|'full'|'level_up'|'badge'} type
+ *           unlocked: the pet joined; fed: a meal fed it; full: a meal was logged but the pets were full that day;
+ *           level_up: it reached a level; badge: it earned a badge (or the next tier)
+ * @property {string}      pet_id
+ * @property {string}      at          ISO time
+ * @property {string}      text        a ready-to-show sentence
+ * @property {string}      entry_id    the journal entry that caused it
+ * @property {{id: string, name: string}|null} place
+ * @property {number}      [xp]        fed / full
+ * @property {number}      [level]     level_up: the new level
+ * @property {number}      [from]      level_up: the old level
+ * @property {string}      [badge_id]  badge
+ * @property {number}      [tier]      badge
+ */
+
+/**
+ * @typedef {Object} PetJournal   the food journal as one pet sees it (the starter sees every meal)
+ * @property {string} pet_id
+ * @property {(DexEntry & {place: {id: string, name: string, cuisine: string, price_level: number|null, neighborhood: {id: string, name: string}|null}, fed: boolean, xp_gained: number})[]} entries   newest first
+ * @property {{meals: number, photos: number, rated: number, average_rating: number|null,
+ *             top_cuisines: {cuisine: string, count: number}[], recent_dishes: string[],
+ *             first_meal_at: string|null, last_meal_at: string|null}} stats
  */
 
 /**
@@ -84,10 +146,12 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
  * @property {boolean}     is_starter
  * @property {boolean}     unlocked         the starter is always unlocked; the rest unlock on your first dex entry in their neighborhood
  * @property {string|null} unlocked_at      ISO time of your first entry there, null if locked or the starter
- * @property {number}      entries          dex entries in the pet's neighborhood (all entries for the starter)
- * @property {number}      xp               XP from those entries
- * @property {number}      level            levelFromXp(xp)
- * @property {number}      next_level_xp    XP needed for the next level
+ * @property {number}      entries          meals logged in the pet's neighborhood (all meals for the starter), fed or not
+ * @property {number}      xp               XP from the meals that fed it (at most DAILY_FEED_LIMIT meals a day count)
+ * @property {number}      level            0 to max_level, see petLevelFromXp()
+ * @property {number}      max_level        5: a pet is fully grown there, about 9 meals
+ * @property {number|null} next_level_xp    total XP needed for the next level, null at the max level
+ * @property {{id: string, name: string, tier: number, tier_label: string}[]} badges   badges this pet wears
  * @property {boolean}     active           whether it is the pet shown on the dashboard
  */
 
@@ -227,7 +291,7 @@ function apiError(code, message) {
   err.code = code;
   return err;
 }
-// Codes: 'NOT_SIGNED_IN' | 'NOT_FOUND' | 'ALREADY_IN_DEX' | 'NOT_UNLOCKED'
+// Codes: 'NOT_SIGNED_IN' | 'NOT_FOUND' | 'ALREADY_IN_DEX' | 'NOT_UNLOCKED' | 'INVALID'
 
 /* ---------------------------------------------------------------------------
  * Mock implementation
@@ -424,48 +488,58 @@ async function fetchVehicleJson() {
   throw new Error('MBTA vehicles feed unreachable');
 }
 
+/** The stamp rule: station id -> ids of the given places within STAMP_RADIUS_M of it. */
+function stampsFor(visitedPlaces) {
+  const by_station = {};
+  for (const st of mbta.stations) {
+    const hits = visitedPlaces
+      .filter((p) => distanceM(p.lat, p.lng, st.lat, st.lng) <= STAMP_RADIUS_M)
+      .map((p) => p.id);
+    if (hits.length) by_station[st.id] = hits;
+  }
+  return by_station;
+}
+
+/** XP one fed meal is worth. (Meals past the daily limit are worth nothing: see petEngine.js.) */
 const entryXp = (e) => XP_PER_ENTRY + (e.photo_url ? XP_PHOTO_BONUS : 0);
 const neighborhoodOfEntry = (e) => mockPlaces.find((p) => p.id === e.place_id)?.neighborhood?.id ?? null;
+const cleanNote = (n) => String(n ?? '').trim().slice(0, 280) || null;
 
-/** XP needed to reach the next level (the inverse of levelFromXp). */
-const nextLevelXp = (xp) => (levelFromXp(xp) + 1) ** 2 * 10;
+/** ISO time for `daysAgo` days back at hour:minute on the Boston clock (handles daylight saving). */
+function bostonTime(daysAgo, hour, minute) {
+  const base = new Date();
+  base.setUTCDate(base.getUTCDate() - daysAgo);
+  const guess = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate(), hour + 5, minute));
+  const off = localParts(guess.toISOString()).hour - hour; // 0 in winter, 1 in summer
+  const shift = ((((off + 12) % 24) + 24) % 24) - 12;
+  return new Date(guess.getTime() - shift * 3600000).toISOString();
+}
+
+/** Feeding, levels, badges, and history, all derived from the dex. */
+const engine = createPetEngine({
+  places: mockPlaces,
+  pets,
+  neighborhoods: neighborhoods.features,
+  lines: mbta.lines,
+  stampsFor,
+  entryXp,
+});
 
 /**
  * Every pet's progress, derived from the dex. A neighborhood's pet unlocks with your first entry
- * there and levels up with the XP from entries there. The starter is always unlocked and levels with
- * all your entries.
+ * there and levels with the meals fed there. The starter is always unlocked and eats everywhere.
  * @returns {Pet[]}
  */
-function petStates(dex, activeId) {
-  const byHood = {};
-  for (const e of dex) {
-    const id = neighborhoodOfEntry(e);
-    if (!id) continue;
-    const slot = (byHood[id] ??= { entries: 0, xp: 0, first: null });
-    slot.entries += 1;
-    slot.xp += entryXp(e);
-    if (!slot.first || e.visited_at < slot.first) slot.first = e.visited_at;
-  }
-  const totalXp = dex.reduce((sum, e) => sum + entryXp(e), 0);
+function petStates(dex, activeId, analysis = engine.analyze(dex)) {
   const nicknames = readStore(PET_NICKNAMES_KEY, {});
-
-  return pets.map((p) => {
-    const slot = p.is_starter ? { entries: dex.length, xp: totalXp, first: null } : byHood[p.neighborhood_id];
-    const xp = slot?.xp ?? 0;
-    return {
-      ...p,
-      nickname: nicknames[p.id] ?? null,
-      display_name: nicknames[p.id] ?? p.name,
-      neighborhood: p.neighborhood_id ? { id: p.neighborhood_id, name: hoodById[p.neighborhood_id].name } : null,
-      unlocked: p.is_starter || Boolean(slot),
-      unlocked_at: slot?.first ?? null,
-      entries: slot?.entries ?? 0,
-      xp,
-      level: levelFromXp(xp),
-      next_level_xp: nextLevelXp(xp),
-      active: p.id === activeId,
-    };
-  });
+  return pets.map((p) => ({
+    ...p,
+    nickname: nicknames[p.id] ?? null,
+    display_name: nicknames[p.id] ?? p.name,
+    neighborhood: p.neighborhood_id ? { id: p.neighborhood_id, name: hoodById[p.neighborhood_id].name } : null,
+    ...engine.petStats(analysis, p),
+    active: p.id === activeId,
+  }));
 }
 
 /** The active pet is the one the user picked, as long as it is unlocked; otherwise the starter. */
@@ -589,13 +663,7 @@ const mockApi = {
       .map((e) => mockPlaces.find((p) => p.id === e.place_id))
       .filter(Boolean);
 
-    const by_station = {};
-    for (const st of mbta.stations) {
-      const hits = dexPlaces
-        .filter((p) => distanceM(p.lat, p.lng, st.lat, st.lng) <= STAMP_RADIUS_M)
-        .map((p) => p.id);
-      if (hits.length) by_station[st.id] = hits;
-    }
+    const by_station = stampsFor(dexPlaces);
 
     const lines = mbta.lines.map((l) => {
       const total = l.station_ids.length;
@@ -694,16 +762,17 @@ const mockApi = {
   },
 
   /**
+   * Log a meal in the food journal. It feeds the pets (the starter, and the pet of the neighborhood
+   * the place is in), unless the pets are already full for the day (DAILY_FEED_LIMIT meals).
    * @param {string} placeId
-   * @param {{favoriteDish?: string, myRating?: number, photo?: File}} [extra]
-   * @returns {Promise<DexEntry>} includes `unlocked_pet` when this entry unlocked a new neighborhood pet
+   * @param {{favoriteDish?: string, myRating?: number, note?: string, photo?: File}} [extra]
+   * @returns {Promise<DexEntry>} the entry plus what it did: `fed`, `xp_gained`, `unlocked_pet`, `level_ups`, `new_badges`
    */
-  async addToDex(placeId, { favoriteDish = null, myRating = null, photo = null } = {}) {
+  async addToDex(placeId, { favoriteDish = null, myRating = null, note = null, photo = null } = {}) {
     await delay();
     if (!isSignedIn()) throw apiError('NOT_SIGNED_IN', 'Sign in to add to your dex');
-    if (!mockPlaces.some((p) => p.id === placeId)) {
-      throw apiError('NOT_FOUND', `Place not found: ${placeId}`);
-    }
+    const place = mockPlaces.find((p) => p.id === placeId);
+    if (!place) throw apiError('NOT_FOUND', `Place not found: ${placeId}`);
     const dex = readStore(DEX_KEY, []);
     if (dex.some((e) => e.place_id === placeId)) {
       throw apiError('ALREADY_IN_DEX', 'This place is already in your dex');
@@ -713,19 +782,151 @@ const mockApi = {
       place_id: placeId,
       favorite_dish: favoriteDish,
       my_rating: myRating,
+      note: cleanNote(note),
       photo_url: photo ? await fileToDataUrl(photo) : null,
       visited_at: new Date().toISOString(),
     };
     const nextDex = [...dex, entry];
     writeStore(DEX_KEY, nextDex);
 
-    // Did this entry unlock a neighborhood pet? (First entry in that neighborhood.)
-    const hood = mockPlaces.find((p) => p.id === placeId).neighborhood?.id;
-    const firstThere = hood && !dex.some((e) => neighborhoodOfEntry(e) === hood);
-    const unlocked_pet = firstThere
-      ? petStates(nextDex, activePetId(nextDex)).find((p) => p.neighborhood_id === hood)
-      : null;
-    return { ...entry, unlocked_pet };
+    // Work out what this meal did.
+    const after = engine.analyze(nextDex);
+    const info = after.entryInfo[entry.id];
+    const mine = after.events.filter((ev) => ev.entry_id === entry.id);
+    const unlocked = mine.find((ev) => ev.type === 'unlocked');
+    return {
+      ...entry,
+      fed: info.fed,
+      xp_gained: info.xp,
+      unlocked_pet: unlocked ? petStates(nextDex, activePetId(nextDex), after).find((p) => p.id === unlocked.pet_id) : null,
+      level_ups: mine.filter((ev) => ev.type === 'level_up').map((ev) => ({ pet_id: ev.pet_id, from: ev.from, to: ev.level })),
+      new_badges: mine
+        .filter((ev) => ev.type === 'badge')
+        .map((ev) => {
+          const b = engine.badgeDefById.get(ev.badge_id);
+          return { badge_id: b.id, name: b.name, tier: ev.tier, tier_label: b.tier_labels[ev.tier - 1], pet_id: ev.pet_id };
+        }),
+    };
+  },
+
+  /**
+   * Edit a journal entry after the fact: dish, rating, note, or photo. Pass `null` to clear a field.
+   * (Adding a photo later earns the photo bonus only if that meal was fed.)
+   * @param {string} entryId
+   * @param {{favoriteDish?: string|null, myRating?: number|null, note?: string|null, photo?: File|null}} patch
+   * @returns {Promise<DexEntry>}
+   * @throws NOT_SIGNED_IN, NOT_FOUND, or INVALID
+   */
+  async updateDexEntry(entryId, { favoriteDish, myRating, note, photo } = {}) {
+    await delay();
+    if (!isSignedIn()) throw apiError('NOT_SIGNED_IN', 'Sign in to edit your journal');
+    const dex = readStore(DEX_KEY, []);
+    const index = dex.findIndex((e) => e.id === entryId);
+    if (index === -1) throw apiError('NOT_FOUND', `Journal entry not found: ${entryId}`);
+    const next = { ...dex[index] };
+    if (favoriteDish !== undefined) next.favorite_dish = String(favoriteDish ?? '').trim().slice(0, 80) || null;
+    if (myRating !== undefined) {
+      if (myRating !== null && !(myRating >= 1 && myRating <= 5)) throw apiError('INVALID', 'Rating must be 1 to 5');
+      next.my_rating = myRating;
+    }
+    if (note !== undefined) next.note = cleanNote(note);
+    if (photo !== undefined) next.photo_url = photo ? await fileToDataUrl(photo) : null;
+    dex[index] = next;
+    writeStore(DEX_KEY, dex);
+    return next;
+  },
+
+  /**
+   * Are the pets full for today? Boston time. Meals past the limit are still logged, they just
+   * give no XP, so nobody needs to eat out more to keep up.
+   * @returns {Promise<FeedingStatus>}
+   */
+  async getFeedingStatus() {
+    await delay();
+    const dex = isSignedIn() ? readStore(DEX_KEY, []) : [];
+    const today = localParts(new Date().toISOString()).day;
+    const meals = dex.filter((e) => localParts(e.visited_at).day === today).length;
+    return {
+      daily_limit: DAILY_FEED_LIMIT,
+      meals_today: meals,
+      fed_today: Math.min(meals, DAILY_FEED_LIMIT),
+      remaining: Math.max(0, DAILY_FEED_LIMIT - meals),
+      full: meals >= DAILY_FEED_LIMIT,
+    };
+  },
+
+  /**
+   * Every badge with the user's progress. Neighborhood badges are worn by that neighborhood's pet;
+   * the rest are worn by the starter.
+   * @returns {Promise<Badge[]>}
+   */
+  async getBadges() {
+    await delay();
+    const dex = isSignedIn() ? readStore(DEX_KEY, []) : [];
+    return engine.badgeList(engine.analyze(dex));
+  },
+
+  /**
+   * A pet's story, newest first: when it joined, each meal it was fed, level-ups, and badges.
+   * @param {string} petId
+   * @returns {Promise<PetHistoryEvent[]>} empty for a locked pet or when signed out
+   * @throws NOT_FOUND
+   */
+  async getPetHistory(petId) {
+    await delay();
+    if (!pets.some((p) => p.id === petId)) throw apiError('NOT_FOUND', `Pet not found: ${petId}`);
+    const dex = isSignedIn() ? readStore(DEX_KEY, []) : [];
+    return engine
+      .analyze(dex)
+      .events.filter((ev) => ev.pet_id === petId)
+      .sort((a, b) => b.at.localeCompare(a.at) || b.seq - a.seq)
+      .map(({ seq, ...event }) => event);
+  },
+
+  /**
+   * The food journal as one pet sees it: the meals that fed it, with the place, the dish, and how
+   * much XP each gave. The starter sees every meal; a neighborhood pet sees meals in its neighborhood.
+   * @param {string} petId
+   * @returns {Promise<PetJournal>}
+   * @throws NOT_FOUND
+   */
+  async getPetJournal(petId) {
+    await delay();
+    const pet = pets.find((p) => p.id === petId);
+    if (!pet) throw apiError('NOT_FOUND', `Pet not found: ${petId}`);
+    const dex = isSignedIn() ? readStore(DEX_KEY, []) : [];
+    const analysis = engine.analyze(dex);
+    const entries = [...dex]
+      .filter((e) => pet.is_starter || neighborhoodOfEntry(e) === pet.neighborhood_id)
+      .sort((a, b) => b.visited_at.localeCompare(a.visited_at))
+      .map((e) => {
+        const p = mockPlaces.find((x) => x.id === e.place_id);
+        const info = analysis.entryInfo[e.id];
+        return {
+          ...e,
+          place: { id: p.id, name: p.name, cuisine: p.cuisine, price_level: p.price_level, neighborhood: p.neighborhood },
+          fed: info.fed,
+          xp_gained: info.xp,
+        };
+      });
+
+    const ratings = entries.map((e) => e.my_rating).filter(Boolean);
+    const cuisineCounts = {};
+    for (const e of entries) cuisineCounts[e.place.cuisine] = (cuisineCounts[e.place.cuisine] ?? 0) + 1;
+    const stats = {
+      meals: entries.length,
+      photos: entries.filter((e) => e.photo_url).length,
+      rated: ratings.length,
+      average_rating: ratings.length ? Math.round((10 * ratings.reduce((a, b) => a + b, 0)) / ratings.length) / 10 : null,
+      top_cuisines: Object.entries(cuisineCounts)
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .slice(0, 3)
+        .map(([cuisine, count]) => ({ cuisine, count })),
+      recent_dishes: [...new Set(entries.map((e) => e.favorite_dish).filter(Boolean))].slice(0, 5),
+      first_meal_at: entries.length ? entries[entries.length - 1].visited_at : null,
+      last_meal_at: entries.length ? entries[0].visited_at : null,
+    };
+    return { pet_id: petId, entries, stats };
   },
 
   /** @returns {Promise<Profile|null>} null when signed out */
@@ -733,12 +934,13 @@ const mockApi = {
     await delay();
     if (!isSignedIn()) return null;
     const dex = readStore(DEX_KEY, []);
-    const xp = dex.reduce((sum, e) => sum + entryXp(e), 0);
+    const analysis = engine.analyze(dex);
+    const xp = analysis.xpBy[starterPet.id] ?? 0; // trainer XP: every fed meal
     const activeId = activePetId(dex);
     return {
       id: MOCK_USER.id,
       display_name: MOCK_USER.display_name,
-      pet_name: petStates(dex, activeId).find((p) => p.id === activeId).display_name,
+      pet_name: petStates(dex, activeId, analysis).find((p) => p.id === activeId).display_name,
       active_pet_id: activeId,
       xp,
       level: levelFromXp(xp),
@@ -764,24 +966,26 @@ const mockApi = {
   /** Mock only: signs in and fills the dex with a few places so the UI has something to show. */
   async loadDemoData() {
     await delay();
+    // [place, dish, rating, note, days ago, hour (24h, Boston time), minute]. Spread over days and times, three of them late.
     const demo = [
-      ['mock-001', 'Beef pho', 5],
-      ['mock-004', 'Lobster roll', 5],
-      ['mock-008', 'Chickpea fritter pita', 4],
-      ['mock-009', 'Pastrami sandwich', 5],
-      ['mock-011', 'Shakshuka', 4],
-      ['mock-012', 'Tasty burger', 4],
+      ['mock-001', 'Beef pho', 5, 'Best broth near campus.', 8, 12, 30],
+      ['mock-004', 'Lobster roll', 5, null, 6, 22, 15],
+      ['mock-008', 'Chickpea fritter pita', 4, null, 5, 8, 0],
+      ['mock-009', 'Pastrami sandwich', 5, 'Split it with a friend.', 3, 12, 10],
+      ['mock-011', 'Shakshuka', 4, null, 2, 22, 40],
+      ['mock-012', 'Tasty burger', 4, 'Post-study-session fuel.', 1, 23, 20],
     ];
     writeStore(SIGNED_IN_KEY, true);
     writeStore(
       DEX_KEY,
-      demo.map(([place_id, favorite_dish, my_rating], i) => ({
+      demo.map(([place_id, favorite_dish, my_rating, note, daysAgo, hour, minute], i) => ({
         id: `dex-demo-${i}`,
         place_id,
         favorite_dish,
         my_rating,
+        note,
         photo_url: null,
-        visited_at: new Date(Date.now() - i * 86400000).toISOString(),
+        visited_at: bostonTime(daysAgo, hour, minute),
       })),
     );
   },
@@ -824,6 +1028,11 @@ export const {
   getPets,
   setActivePet,
   setPetNickname,
+  getFeedingStatus,
+  getBadges,
+  getPetHistory,
+  getPetJournal,
+  updateDexEntry,
   getNeighborhoodProgress,
   getVehicles,
   getStamps,

@@ -56,6 +56,9 @@ export default function PlaceCard({ placeId, signedIn, onClose, onDexChange, onS
         text:
           'Added to your dex!' +
           (entry.unlocked_pet ? ` New pet unlocked: ${entry.unlocked_pet.name}!` : '') +
+          (entry.level_ups?.length ? ' Level up!' : '') +
+          (entry.new_badges?.length ? ` Badge: ${entry.new_badges.map((b) => b.name).join(', ')}.` : '') +
+          (entry.fed === false ? ' Your pets are full for today, so no XP this time.' : '') +
           (names.length ? ` New station stamps: ${names.join(', ')}` : ''),
       });
       onDexChange();
