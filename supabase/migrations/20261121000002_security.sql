@@ -32,9 +32,9 @@ create policy "own dex delete" on public.dex_entries for delete to authenticated
 
 -- Column-level limits: a client may only change these fields ------------------------
 revoke update on public.profiles    from authenticated;
-grant  update (display_name, active_pet_id) on public.profiles from authenticated;
+grant  update (display_name, active_pet_id) on public.profiles to authenticated;
 revoke update on public.dex_entries from authenticated;
-grant  update (favorite_dish, my_rating, note, photo_path) on public.dex_entries from authenticated;
+grant  update (favorite_dish, my_rating, note, photo_path) on public.dex_entries to authenticated;
 
 -- Create a profile on first sign-in ------------------------------------------------
 create function public.handle_new_user() returns trigger
