@@ -9,6 +9,7 @@
  */
 import { PET_LEVEL_XP, PET_MAX_LEVEL, petLevelFromXp } from './mock/petEngine.js';
 import { arrivalsQuery, parseArrivals } from './mbtaLive.js';
+import { isBigChain } from './chains.js';
 
 const BUCKET = 'dex-photos';
 const PHOTO_URL_SECONDS = 3600;
@@ -291,6 +292,9 @@ export function createSupabaseApi({ apiError, levelFromXp, tierFromPercent, dail
       const cuisines = cuisine ? [].concat(cuisine) : null;
       const q = query ? query.trim().toLowerCase() : '';
       return (await allPlaces()).filter((p) => {
+        // Chowdex is for local spots, so big chains are left out of the map and search (see chains.js).
+        // getPlace() still finds them, so a chain someone already logged keeps working in their dex.
+        if (isBigChain(p.name)) return false;
         if (q && !p.name.toLowerCase().includes(q)) return false;
         if (cuisines && !cuisines.includes(p.cuisine)) return false;
         if (maxPrice && p.price_level != null && p.price_level > maxPrice) return false;

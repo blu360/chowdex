@@ -14,6 +14,7 @@
  */
 import { readFileSync } from 'node:fs';
 import pg from 'pg';
+import { isBigChain } from '../src/lib/chains.js';
 
 const url = process.env.SUPABASE_DB_URL;
 if (!url) {
@@ -108,6 +109,7 @@ out center tags;`;
   };
 
   const rows = [];
+  const chainIds = []; // big chains: not loaded, and removed if an earlier seed loaded them
   const seen = new Set();
   for (const el of elements) {
     const lat = el.lat ?? el.center?.lat;
@@ -117,6 +119,11 @@ out center tags;`;
     if (seen.has(osmId)) continue;
     seen.add(osmId);
     const t = el.tags;
+    // Chowdex is for local spots: skip national chains (by name, or by OpenStreetMap's brand tag). See src/lib/chains.js.
+    if (isBigChain(t.name, { brandWikidata: t['brand:wikidata'] ?? null })) {
+      chainIds.push(osmId);
+      continue;
+    }
     rows.push({
       osm_id: osmId,
       name: t.name.slice(0, 120),
@@ -128,7 +135,7 @@ out center tags;`;
       website: t.website ?? t['contact:website'] ?? null,
     });
   }
-  console.log(`OpenStreetMap returned ${rows.length} named places`);
+  console.log(`OpenStreetMap returned ${rows.length + chainIds.length} named places (${chainIds.length} big-chain locations skipped)`);
 
   await client.query('begin');
   try {
@@ -144,6 +151,13 @@ out center tags;`;
         [JSON.stringify(chunk)],
       );
     }
+
+    // Chains loaded by an earlier seed go away too, unless someone already has one in their dex.
+    const chainsRemoved = await client.query(
+      `delete from places p where p.osm_id = any($1::text[]) and not exists (select 1 from dex_entries e where e.place_id = p.id)`,
+      [chainIds],
+    );
+    if (chainsRemoved.rowCount) console.log(`removed ${chainsRemoved.rowCount} chain locations from an earlier seed`);
 
     // Neighborhood: point-in-polygon. Places outside all 24 areas are not part of the game.
     await client.query(

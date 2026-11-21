@@ -14,6 +14,7 @@ import mbta from './mock/mbta.json';
 import neighborhoods from './mock/neighborhoods.json';
 import { createPetEngine, DAILY_FEED_LIMIT, PET_LEVEL_XP, PET_MAX_LEVEL, petLevelFromXp, localParts } from './mock/petEngine.js';
 import { createSupabaseApi } from './supabaseApi.js';
+import { isBigChain } from './chains.js';
 import { planDirections } from './directions.js';
 import { arrivalsQuery, parseArrivals } from './mbtaLive.js';
 import { addTripFromRoute, listTrips, removeTrip, tallyTrips } from './trips.js';
@@ -629,6 +630,7 @@ const mockApi = {
 
     return mockPlaces
       .filter((p) => {
+        if (isBigChain(p.name)) return false; // Chowdex is for local spots: see chains.js
         if (q && !p.name.toLowerCase().includes(q)) return false;
         if (cuisines && !cuisines.includes(p.cuisine)) return false;
         if (maxPrice && p.price_level != null && p.price_level > maxPrice) return false;

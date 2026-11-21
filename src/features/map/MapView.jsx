@@ -24,7 +24,8 @@ const INK = '#111111';
 /** Every neighborhood layer, for the show/hide toggle. */
 const HOOD_LAYERS = ['neighborhoods-fill', 'neighborhoods-hatch', ...SKETCH_LEVELS.map((l) => `neighborhoods-outline-${l.id}`), 'neighborhood-labels'];
 const ACCENT = '#A9D7F7'; // same baby blue as --accent in game.css
-const NAVY = '#14407A';
+const PLACE_FILL = '#FFF6E3'; // restaurant dots: a light fill...
+const PLACE_RING = '#E2733C'; // ...with a warm ring
 const TRAIN_POLL_MS = 8000;
 const TRAIN_ICON_MIN_ZOOM = 14.8; // trains are hidden below this zoom
 const DEFAULT_GLIDE_MS = 12000;
@@ -72,6 +73,7 @@ function installLayers(map, { data, dark, layers }) {
   const hoodVisibility = layers.neighborhoods ? 'visible' : 'none';
   const trainVisibility = layers.trains ? 'visible' : 'none';
   const hover = ['boolean', ['feature-state', 'hover'], false];
+  const collected = ['==', ['get', 'collected'], 1];
   // Journey mode (dashboard and pet profile maps): explored neighborhoods are lit, the rest are dimmed.
   const lit = ['boolean', ['feature-state', 'lit'], false];
   const dim = ['boolean', ['feature-state', 'dim'], false];
@@ -279,12 +281,16 @@ function installLayers(map, { data, dark, layers }) {
     id: 'places',
     type: 'circle',
     source: 'places',
+    layout: { 'circle-sort-key': ['get', 'collected'] }, // dex places draw on top
     minzoom: PLACE_MIN_ZOOM,
     paint: {
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 4.5, 15, 9],
-      'circle-color': ['case', ['==', ['get', 'collected'], 1], ACCENT, dark ? '#dbe7fb' : NAVY],
-      'circle-stroke-color': dark ? '#0a1526' : INK,
-      'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 15, 2.5],
+      // Light dots with a warm ring are easier on the eyes than solid dark ones when a block is full of them.
+      // Places in your dex are solid, a little bigger, and outlined in ink, so they still stand out.
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 13, ['case', collected, 5, 3.5], 15, ['case', collected, 8, 6], 17, ['case', collected, 10, 8]],
+      'circle-color': ['case', collected, ACCENT, dark ? '#1b2a45' : PLACE_FILL],
+      'circle-stroke-color': ['case', collected, dark ? '#dbe7fb' : INK, dark ? '#f0a875' : PLACE_RING],
+      'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 13, 1.5, 16, 2.5],
+      'circle-opacity': ['case', collected, 1, 0.95],
     },
   });
   map.addLayer({

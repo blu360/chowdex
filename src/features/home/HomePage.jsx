@@ -16,6 +16,7 @@ import { Icon, LevelPill, LineDots, PetArt, XpBar } from '../../components/ui.js
 import { boundsOfFeature, buildActivity, petProgress, timeAgo, trainerProgress } from '../../lib/game.js';
 import JourneyMap from '../map/JourneyMap.jsx';
 import GreenTally from './GreenTally.jsx';
+import Spotlight from './Spotlight.jsx';
 import PetCard, { homeOf } from '../pet/PetCard.jsx';
 import { STARTER_TINT, tintsFor } from '../pet/PetsPage.jsx';
 import { loreFor } from '../pet/petLore.js';
@@ -178,6 +179,8 @@ export default function HomePage({ version, user, profile, onOpenPet, onGo, onEx
         </section>
 
         {/* ---------- Green trips (only the trips the rider chose to log) ---------- */}
+        <Spotlight version={version} onExplore={onExplore} />
+
         <GreenTally version={version} onGo={onGo} />
 
         {/* On wide screens the journey sits in the right column beside the pets and the activity feed. */}
