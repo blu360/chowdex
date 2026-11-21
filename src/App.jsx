@@ -8,12 +8,13 @@ import {
   signOut,
   loadDemoData,
   resetDemoData,
+  IS_MOCK,
 } from './lib/api.js';
 import { useRoute } from './lib/route.js';
 import MapView from './features/map/MapView.jsx';
 import SearchPanel from './features/map/SearchPanel.jsx';
 import Legend from './features/map/Legend.jsx';
-import { DEFAULT_STYLE_ID, MAP_STYLES } from './features/map/mapStyles.js';
+import { DEFAULT_STYLE_ID, NIGHT_STYLE_ID, PICKABLE_STYLES } from './features/map/mapStyles.js';
 import PlaceCard from './features/place/PlaceCard.jsx';
 import StationCard from './features/stamps/StationCard.jsx';
 import StampsPage from './features/stamps/StampsPage.jsx';
@@ -40,11 +41,23 @@ const NAV = [
 function loadStyleId() {
   try {
     const saved = localStorage.getItem(STYLE_KEY);
-    if (MAP_STYLES.some((s) => s.id === saved)) return saved;
+    if (PICKABLE_STYLES.some((s) => s.id === saved)) return saved;
   } catch {
     // storage unavailable: use the default
   }
   return DEFAULT_STYLE_ID;
+}
+
+const NIGHT_KEY = 'chowdex.night';
+
+function loadNight() {
+  try {
+    const saved = localStorage.getItem(NIGHT_KEY);
+    if (saved !== null) return saved === 'true';
+    return localStorage.getItem(STYLE_KEY) === 'night'; // night used to be a map style: keep it for people who chose it
+  } catch {
+    return false;
+  }
 }
 
 function Logo() {
@@ -79,6 +92,17 @@ export default function App() {
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
   const bump = useCallback(() => setVersion((v) => v + 1), []);
+
+  // Night mode (the moon button in the top bar) themes the whole app and the map (see the night theme at the end of game.css).
+  const [night, setNight] = useState(loadNight);
+  useEffect(() => {
+    document.documentElement.dataset.theme = night ? 'night' : 'light';
+    try {
+      localStorage.setItem(NIGHT_KEY, String(night));
+    } catch {
+      // not persisted, still applied
+    }
+  }, [night]);
 
   // Leaving Explore forgets the open place card and the last search focus, so coming back starts fresh.
   // (Jumping to Explore from another screen sets them first and then changes the tab, so that still works.)
@@ -183,7 +207,7 @@ export default function App() {
 
   const signedIn = Boolean(user);
   const onSignIn = act(signInWithGoogle);
-  const onDemo = act(loadDemoData);
+  const onDemo = IS_MOCK ? act(loadDemoData) : undefined; // demo data only exists in mock mode
 
   return (
     <div className="app">
@@ -216,6 +240,15 @@ export default function App() {
             </button>
           )}
           <button
+            className="avatar-btn theme-btn"
+            onClick={() => setNight((v) => !v)}
+            aria-pressed={night}
+            aria-label="Night mode"
+            title={night ? 'Switch to day mode' : 'Switch to night mode'}
+          >
+            <Icon name={night ? 'sun' : 'moon'} size={18} />
+          </button>
+          <button
             className={menuOpen ? 'avatar-btn on' : 'avatar-btn'}
             onClick={() => setMenuOpen((v) => !v)}
             aria-expanded={menuOpen}
@@ -231,10 +264,13 @@ export default function App() {
               ) : (
                 <button className="btn btn-small btn-solid" onClick={onSignIn}>Sign in with Google</button>
               )}
-              <button className="btn btn-small btn-quiet" onClick={onDemo} title="Mock mode: fill the dex with sample places">
-                Load demo data
-              </button>
-              {user && <button className="btn btn-small btn-quiet" onClick={act(resetDemoData)}>Reset</button>}            </div>
+              {onDemo && (
+                <button className="btn btn-small btn-quiet" onClick={onDemo} title="Mock mode: fill the dex with sample places">
+                  Load demo data
+                </button>
+              )}
+              {IS_MOCK && user && <button className="btn btn-small btn-quiet" onClick={act(resetDemoData)}>Reset</button>}
+            </div>
           )}
         </div>
       </header>
@@ -259,7 +295,7 @@ export default function App() {
               version={version}
               filters={filters}
               focus={focus}
-              styleId={styleId}
+              styleId={night && NIGHT_STYLE_ID ? NIGHT_STYLE_ID : styleId}
               layers={layers}
               onSelectPlace={selectPlace}
               onSelectStation={selectStation}

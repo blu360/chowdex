@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getPlaces, getStations, getNeighborhoods } from '../../lib/api.js';
 import { LINE_COLORS } from '../../lib/lines.js';
-import { MAP_STYLES } from './mapStyles.js';
+import { PICKABLE_STYLES } from './mapStyles.js';
 
 /** [[west, south], [east, north]] of a GeoJSON geometry. */
 function geometryBounds(geometry) {
@@ -216,7 +216,7 @@ export default function SearchPanel({ filters, onFilters, layers, onLayers, styl
           )}
           <h4>Map style</h4>
           <div className="style-grid">
-            {MAP_STYLES.map((s) => (
+            {PICKABLE_STYLES.map((s) => (
               <button
                 key={s.id}
                 className={s.id === styleId ? 'style-tile on' : 'style-tile'}

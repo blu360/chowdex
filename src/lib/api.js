@@ -3,7 +3,8 @@
  * Supabase directly. Shapes are documented in docs/schema.md.
  *
  * VITE_USE_MOCK=true  (default) -> in-memory mock data + localStorage, no backend needed
- * VITE_USE_MOCK=false           -> real Supabase backend (not implemented yet)
+ * VITE_USE_MOCK=false           -> real Supabase backend (src/lib/supabaseApi.js); needs
+ *                                  VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
  *
  * Changing a function name or return shape here affects everyone: tell the team first.
  */
@@ -12,6 +13,7 @@ import pets from './mock/pets.json';
 import mbta from './mock/mbta.json';
 import neighborhoods from './mock/neighborhoods.json';
 import { createPetEngine, DAILY_FEED_LIMIT, PET_LEVEL_XP, PET_MAX_LEVEL, petLevelFromXp, localParts } from './mock/petEngine.js';
+import { createSupabaseApi } from './supabaseApi.js';
 
 export { DAILY_FEED_LIMIT, PET_LEVEL_XP, PET_MAX_LEVEL, petLevelFromXp };
 
@@ -480,10 +482,10 @@ const VEHICLES_QUERY = 'vehicles?filter%5Broute%5D=Red,Orange,Blue,Green-B,Green
  * Tries the dev-server proxy first (it adds our MBTA API key, so the key stays out of the browser),
  * then the public API directly, which works without a key at a lower rate limit.
  */
-async function fetchVehicleJson() {
+async function fetchMbtaJson(query) {
   for (const base of ['/mbta/', 'https://api-v3.mbta.com/']) {
     try {
-      const res = await fetch(base + VEHICLES_QUERY);
+      const res = await fetch(base + query);
       if (!res.ok) continue;
       const json = await res.json(); // a host that serves index.html for /mbta/ fails here and moves on
       if (Array.isArray(json.data)) return json;
@@ -491,8 +493,10 @@ async function fetchVehicleJson() {
       // try the next source
     }
   }
-  throw new Error('MBTA vehicles feed unreachable');
+  throw new Error('MBTA feed unreachable');
 }
+
+const fetchVehicleJson = () => fetchMbtaJson(VEHICLES_QUERY);
 
 /** The stamp rule: station id -> ids of the given places within STAMP_RADIUS_M of it. */
 function stampsFor(visitedPlaces) {
@@ -1039,16 +1043,25 @@ const mockApi = {
 };
 
 /* ---------------------------------------------------------------------------
- * Real implementation (Supabase). Backend owner fills this in.
+ * Real implementation (Supabase): src/lib/supabaseApi.js. Only built when VITE_USE_MOCK=false.
+ * The map shapes, stations, neighborhoods, and the live train feed are bundled data and stay shared.
  * ------------------------------------------------------------------------- */
 
-const notImplemented = (name) => async () => {
-  throw new Error(`api.${name}() is not implemented for the real backend yet. Set VITE_USE_MOCK=true.`);
-};
+const realApi = USE_MOCK
+  ? null
+  : createSupabaseApi({
+      apiError,
+      levelFromXp,
+      tierFromPercent,
+      dailyFeedLimit: DAILY_FEED_LIMIT,
+      config: { url: import.meta.env.VITE_SUPABASE_URL, anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY },
+      fetchMbta: fetchMbtaJson,
+      staticApi: mockApi,
+      data: { mbta, neighborhoods, pets },
+    });
 
-const realApi = Object.fromEntries(
-  Object.keys(mockApi).map((name) => [name, notImplemented(name)]),
-);
+/** True when running on mock data (no backend). The demo-data buttons only make sense then. */
+export const IS_MOCK = USE_MOCK;
 
 /* ---------------------------------------------------------------------------
  * Public API
