@@ -13,9 +13,40 @@ One row per user, created automatically on first Google sign-in.
 |---|---|---|
 | `id` | uuid, PK | same as `auth.users.id` |
 | `display_name` | text | from the Google profile |
-| `pet_name` | text | user-chosen, default set on signup |
-| `xp` | int | updated by a trigger on `dex_entries`; the pet's level is derived from it |
+| `active_pet_id` | text, FK to `pets.id` | the pet shown on the dashboard; default `starter`; must be one the user has unlocked |
+| `xp` | int | trainer XP, updated by a trigger on `dex_entries` (all entries) |
 | `created_at` | timestamptz | |
+
+### `neighborhoods`
+The 24 areas (23 Boston neighborhoods plus Cambridge). Public read, no client writes. Seeded from `src/lib/mock/neighborhoods.json`.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | text, PK | slug, e.g. `chinatown-leather-district` |
+| `name` | text | |
+| `city` | text | `Boston` or `Cambridge` |
+| `color` | text | hex |
+| `boundary` | geography(MultiPolygon) | for the point-in-polygon join that sets `places.neighborhood_id` |
+
+### `pets`
+The 25 pets: one per neighborhood plus the starter. Public read, no client writes. Art lives in `public/pets/`.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | text, PK | the neighborhood id (`allston`, ...) or `starter` |
+| `name` | text | the animal, e.g. `Raccoon` (pets have no preset names) |
+| `neighborhood_id` | text, nullable, FK to `neighborhoods.id` | null for the starter |
+| `is_starter` | bool | |
+| `image`, `svg` | text | e.g. `/pets/png/allston.png` |
+
+### `pet_nicknames`
+Names users give their pets. Users can only read and write their own rows.
+
+| Column | Type | Notes |
+|---|---|---|
+| `user_id` | uuid, FK to `profiles.id` | primary key together with `pet_id` |
+| `pet_id` | text, FK to `pets.id` | |
+| `nickname` | text | up to 24 characters |
 
 ### `places`
 Seeded from OpenStreetMap. Public read, no client writes.
@@ -34,6 +65,7 @@ Seeded from OpenStreetMap. Public read, no client writes.
 | `google_place_id` | text, nullable | the only Google data we store |
 | `nearest_stop_id` | text, FK to `mbta_stops.id` | computed by the seed script |
 | `nearest_stop_distance_m` | int | |
+| `neighborhood_id` | text, nullable, FK to `neighborhoods.id` | set by the seed script with a PostGIS point-in-polygon join; null if outside all 24 areas |
 
 ### `dex_entries`
 A user's collected places. Users can only read and write their own rows.
@@ -107,8 +139,12 @@ See the JSDoc typedefs at the top of `src/lib/api.js` for `DexEntry`, `Profile`,
 | `getVehicles({simulate})` | `VehicleSnapshot` | live subway trains from the MBTA `/vehicles` feed, only those on the drawn lines. `vehicles` is `null` with `error: true` when the feed is unreachable; `simulate: true` returns made-up, sped-up trains for demos |
 | `getStamps()` | `StampSummary` | station stamps and per-line progress, all zeros when signed out |
 | `getDex()` | `DexEntry[]` | `[]` when signed out |
-| `addToDex(placeId, {favoriteDish, myRating, photo})` | `DexEntry` | throws `NOT_SIGNED_IN` or `ALREADY_IN_DEX` |
-| `getProfile()` | `Profile` or `null` | `null` when signed out |
+| `addToDex(placeId, {favoriteDish, myRating, photo})` | `DexEntry` | throws `NOT_SIGNED_IN` or `ALREADY_IN_DEX`. The result has `unlocked_pet` (a `Pet`) when this entry was the first in its neighborhood, else `null` |
+| `getPets()` | `Pet[]` | all 25 pets with `unlocked`, `entries`, `xp`, `level`, `next_level_xp`, `nickname`, `display_name`, and `active`. Signed out: only the starter is unlocked |
+| `setActivePet(petId)` | `Pet` | throws `NOT_SIGNED_IN`, `NOT_FOUND`, or `NOT_UNLOCKED` |
+| `setPetNickname(petId, nickname)` | `Pet` | trimmed to 24 characters, empty clears it; same errors as `setActivePet` |
+| `getNeighborhoodProgress()` | `NeighborhoodProgress[]` | the 24 areas with `entries`, `visited`, and `pet_id`; the dashboard's "7 of 24" is the count of `visited` |
+| `getProfile()` | `Profile` or `null` | `null` when signed out. `pet_name` is the active pet's display name |
 | `getCurrentUser()` | `User` or `null` | |
 | `signInWithGoogle()`, `signOut()` | | |
 
@@ -118,6 +154,17 @@ The trigger on `dex_entries` and the mock in `api.js` must agree:
 
 - +10 XP per dex entry, +5 more if it has a photo
 - `level = floor(sqrt(xp / 10))`, exported as `levelFromXp()` (0 XP is level 0, 10 is level 1, 40 is level 2, 90 is level 3)
+
+## Pets
+
+25 pets: one per neighborhood plus the starter Boston Terrier (`id: "starter"`). Pets have no preset names: they are called by their animal, and users nickname them. Everything is derived from the dex, so only the active pet and nicknames are stored.
+
+- A neighborhood's pet **unlocks** with the user's first dex entry in that neighborhood (`places.neighborhood_id`). The starter is always unlocked.
+- A pet's **XP** is the XP from dex entries in its neighborhood (same +10 / +5 rules above), and its **level** is `levelFromXp(xp)`. The starter's XP is the total from all entries.
+- Only an unlocked pet can be made active or nicknamed. If the active pet is somehow no longer unlocked, the starter is active.
+- In SQL this is a `GROUP BY places.neighborhood_id` over the user's `dex_entries`.
+
+The full pet-by-neighborhood list, with the art, is in `public/pets/README.md` (`png/`, `svg/`, and a `pets.json` manifest). `src/lib/mock/pets.json` is the API's copy of that list, with `id` set to the neighborhood id.
 
 ## Station stamps
 

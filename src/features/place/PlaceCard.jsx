@@ -46,16 +46,17 @@ export default function PlaceCard({ placeId, signedIn, onClose, onDexChange, onS
     setMessage(null);
     try {
       const before = await getStamps();
-      await addToDex(placeId, { favoriteDish: dish || null, myRating: rating || null });
+      const entry = await addToDex(placeId, { favoriteDish: dish || null, myRating: rating || null });
       const [after, stations] = await Promise.all([getStamps(), getStations()]);
       const fresh = Object.keys(after.by_station).filter((id) => !before.by_station[id]);
       const names = fresh.map((id) => stations.find((s) => s.id === id)?.name).filter(Boolean);
       setCollected(true);
       setMessage({
         kind: 'success',
-        text: names.length
-          ? `Added to your dex! New station stamps: ${names.join(', ')}`
-          : 'Added to your dex!',
+        text:
+          'Added to your dex!' +
+          (entry.unlocked_pet ? ` New pet unlocked: ${entry.unlocked_pet.name}!` : '') +
+          (names.length ? ` New station stamps: ${names.join(', ')}` : ''),
       });
       onDexChange();
     } catch (err) {

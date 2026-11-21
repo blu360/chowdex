@@ -37,6 +37,9 @@ export const MAX_BOUNDS = [[-71.3, 42.14], [-70.84, 42.5]];
 
 export const MIN_ZOOM = 9.5;
 
+/** Land detail (parks, buildings, textures) stays hidden until you zoom in this far, so far-out views are flat and uniform. */
+const DETAIL_MIN_ZOOM = 13;
+
 /** Roads stay hidden until you zoom in this far (big highways appear a little earlier). */
 const MAJOR_ROAD_MIN_ZOOM = 12;
 const ROAD_MIN_ZOOM = 14;
@@ -66,6 +69,10 @@ export function tweakBasemap(map, style) {
 
     if (/^(poi|housenumber|aerodrome_label|boundary)$/.test(sourceLayer) || /(^|\W)poi(\W|$)/i.test(layer.id)) {
       hide();
+    } else if (/^(landcover|landuse|landuse_overlay|globallandcover|park|building|aeroway)$/.test(sourceLayer) || layer.type === 'hillshade') {
+      // Parks, land texture, buildings, and shading make the zoomed-out map look like a photo.
+      // Keep one flat land color until you zoom in, then bring the detail back.
+      map.setLayerZoomRange(layer.id, Math.max(layer.minzoom ?? 0, DETAIL_MIN_ZOOM), layer.maxzoom ?? 24);
     } else if (sourceLayer === 'transportation' || sourceLayer === 'transportation_name') {
       if (/rail|transit|subway|cablecar|gondola|ferry/i.test(layer.id)) {
         hide();

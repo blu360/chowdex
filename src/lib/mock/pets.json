@@ -1,0 +1,202 @@
+[
+  {
+    "id": "allston",
+    "name": "Raccoon",
+    "neighborhood_id": "allston",
+    "is_starter": false,
+    "image": "/pets/png/allston.png",
+    "svg": "/pets/svg/allston.svg"
+  },
+  {
+    "id": "back-bay",
+    "name": "Swan",
+    "neighborhood_id": "back-bay",
+    "is_starter": false,
+    "image": "/pets/png/back-bay.png",
+    "svg": "/pets/svg/back-bay.svg"
+  },
+  {
+    "id": "bay-village",
+    "name": "Mouse",
+    "neighborhood_id": "bay-village",
+    "is_starter": false,
+    "image": "/pets/png/bay-village.png",
+    "svg": "/pets/svg/bay-village.svg"
+  },
+  {
+    "id": "beacon-hill",
+    "name": "Mallard Duck",
+    "neighborhood_id": "beacon-hill",
+    "is_starter": false,
+    "image": "/pets/png/beacon-hill.png",
+    "svg": "/pets/svg/beacon-hill.svg"
+  },
+  {
+    "id": "brighton",
+    "name": "Calf",
+    "neighborhood_id": "brighton",
+    "is_starter": false,
+    "image": "/pets/png/brighton.png",
+    "svg": "/pets/svg/brighton.svg"
+  },
+  {
+    "id": "cambridge",
+    "name": "Owl",
+    "neighborhood_id": "cambridge",
+    "is_starter": false,
+    "image": "/pets/png/cambridge.png",
+    "svg": "/pets/svg/cambridge.svg"
+  },
+  {
+    "id": "charlestown",
+    "name": "Hermit Crab",
+    "neighborhood_id": "charlestown",
+    "is_starter": false,
+    "image": "/pets/png/charlestown.png",
+    "svg": "/pets/svg/charlestown.svg"
+  },
+  {
+    "id": "chinatown-leather-district",
+    "name": "Dragon",
+    "neighborhood_id": "chinatown-leather-district",
+    "is_starter": false,
+    "image": "/pets/png/chinatown-leather-district.png",
+    "svg": "/pets/svg/chinatown-leather-district.svg"
+  },
+  {
+    "id": "dorchester",
+    "name": "Ladybug",
+    "neighborhood_id": "dorchester",
+    "is_starter": false,
+    "image": "/pets/png/dorchester.png",
+    "svg": "/pets/svg/dorchester.svg"
+  },
+  {
+    "id": "downtown",
+    "name": "Grasshopper",
+    "neighborhood_id": "downtown",
+    "is_starter": false,
+    "image": "/pets/png/downtown.png",
+    "svg": "/pets/svg/downtown.svg"
+  },
+  {
+    "id": "east-boston",
+    "name": "Seagull",
+    "neighborhood_id": "east-boston",
+    "is_starter": false,
+    "image": "/pets/png/east-boston.png",
+    "svg": "/pets/svg/east-boston.svg"
+  },
+  {
+    "id": "fenway-kenmore",
+    "name": "Bullfrog",
+    "neighborhood_id": "fenway-kenmore",
+    "is_starter": false,
+    "image": "/pets/png/fenway-kenmore.png",
+    "svg": "/pets/svg/fenway-kenmore.svg"
+  },
+  {
+    "id": "hyde-park",
+    "name": "Wild Turkey",
+    "neighborhood_id": "hyde-park",
+    "is_starter": false,
+    "image": "/pets/png/hyde-park.png",
+    "svg": "/pets/svg/hyde-park.svg"
+  },
+  {
+    "id": "jamaica-plain",
+    "name": "Great Blue Heron",
+    "neighborhood_id": "jamaica-plain",
+    "is_starter": false,
+    "image": "/pets/png/jamaica-plain.png",
+    "svg": "/pets/svg/jamaica-plain.svg"
+  },
+  {
+    "id": "mattapan",
+    "name": "Trolley Caterpillar",
+    "neighborhood_id": "mattapan",
+    "is_starter": false,
+    "image": "/pets/png/mattapan.png",
+    "svg": "/pets/svg/mattapan.svg"
+  },
+  {
+    "id": "mission-hill",
+    "name": "Mountain Goat",
+    "neighborhood_id": "mission-hill",
+    "is_starter": false,
+    "image": "/pets/png/mission-hill.png",
+    "svg": "/pets/svg/mission-hill.svg"
+  },
+  {
+    "id": "north-end",
+    "name": "Firefly",
+    "neighborhood_id": "north-end",
+    "is_starter": false,
+    "image": "/pets/png/north-end.png",
+    "svg": "/pets/svg/north-end.svg"
+  },
+  {
+    "id": "roslindale",
+    "name": "Rabbit",
+    "neighborhood_id": "roslindale",
+    "is_starter": false,
+    "image": "/pets/png/roslindale.png",
+    "svg": "/pets/svg/roslindale.svg"
+  },
+  {
+    "id": "roxbury",
+    "name": "Puddingstone Tortoise",
+    "neighborhood_id": "roxbury",
+    "is_starter": false,
+    "image": "/pets/png/roxbury.png",
+    "svg": "/pets/svg/roxbury.svg"
+  },
+  {
+    "id": "south-boston",
+    "name": "Clam",
+    "neighborhood_id": "south-boston",
+    "is_starter": false,
+    "image": "/pets/png/south-boston.png",
+    "svg": "/pets/svg/south-boston.svg"
+  },
+  {
+    "id": "south-end",
+    "name": "Peacock",
+    "neighborhood_id": "south-end",
+    "is_starter": false,
+    "image": "/pets/png/south-end.png",
+    "svg": "/pets/svg/south-end.svg"
+  },
+  {
+    "id": "west-end",
+    "name": "Electric Eel",
+    "neighborhood_id": "west-end",
+    "is_starter": false,
+    "image": "/pets/png/west-end.png",
+    "svg": "/pets/svg/west-end.svg"
+  },
+  {
+    "id": "west-roxbury",
+    "name": "Lamb",
+    "neighborhood_id": "west-roxbury",
+    "is_starter": false,
+    "image": "/pets/png/west-roxbury.png",
+    "svg": "/pets/svg/west-roxbury.svg"
+  },
+  {
+    "id": "wharf-district",
+    "name": "Lobster",
+    "neighborhood_id": "wharf-district",
+    "is_starter": false,
+    "image": "/pets/png/wharf-district.png",
+    "svg": "/pets/svg/wharf-district.svg"
+  },
+  {
+    "id": "starter",
+    "name": "Boston Terrier",
+    "neighborhood_id": null,
+    "is_starter": true,
+    "image": "/pets/png/starter.png",
+    "svg": "/pets/svg/starter.svg"
+  }
+]

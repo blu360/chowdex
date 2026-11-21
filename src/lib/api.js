@@ -7,7 +7,8 @@
  *
  * Changing a function name or return shape here affects everyone: tell the team first.
  */
-import mockPlaces from './mock/places.json';
+import rawPlaces from './mock/places.json';
+import pets from './mock/pets.json';
 import mbta from './mock/mbta.json';
 import neighborhoods from './mock/neighborhoods.json';
 
@@ -45,6 +46,7 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
  * @property {string|null} website
  * @property {string|null} google_place_id
  * @property {NearestStop} nearest_stop
+ * @property {{id: string, name: string}|null} neighborhood   which of the 24 areas it is in (a neighborhood id, see getNeighborhoods())
  * @property {PlaceDetails} [details]          present ONLY on getPlace(), never in getPlaces()
  */
 
@@ -56,15 +58,48 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
  * @property {number|null} my_rating     1 to 5, the user's own rating
  * @property {string|null} photo_url
  * @property {string}      visited_at    ISO timestamp
+ * @property {Pet|null}    [unlocked_pet] only on the result of addToDex(): the pet this entry just unlocked, if any
  */
 
 /**
  * @typedef {Object} Profile
  * @property {string} id
  * @property {string} display_name
- * @property {string} pet_name
- * @property {number} xp
+ * @property {string} pet_name           display name (nickname or animal) of the active pet
+ * @property {string} active_pet_id
+ * @property {number} xp                 trainer XP: all dex entries
  * @property {number} level              derived from xp, see levelFromXp()
+ */
+
+/**
+ * One of the 25 pets: a pet for each of the 24 neighborhoods, plus the starter (Boston Terrier).
+ * @typedef {Object} Pet
+ * @property {string}      id               the neighborhood id it lives in, e.g. "allston"; "starter" for the Boston Terrier
+ * @property {string}      name             the animal, e.g. "Raccoon" (pets have no preset names)
+ * @property {string|null} nickname         the name the user gave it, if any
+ * @property {string}      display_name     nickname ?? name
+ * @property {string}      image            512x512 transparent PNG, e.g. "/pets/png/allston.png"
+ * @property {string}      svg              the same art as SVG
+ * @property {{id: string, name: string}|null} neighborhood   null for the starter
+ * @property {boolean}     is_starter
+ * @property {boolean}     unlocked         the starter is always unlocked; the rest unlock on your first dex entry in their neighborhood
+ * @property {string|null} unlocked_at      ISO time of your first entry there, null if locked or the starter
+ * @property {number}      entries          dex entries in the pet's neighborhood (all entries for the starter)
+ * @property {number}      xp               XP from those entries
+ * @property {number}      level            levelFromXp(xp)
+ * @property {number}      next_level_xp    XP needed for the next level
+ * @property {boolean}     active           whether it is the pet shown on the dashboard
+ */
+
+/**
+ * @typedef {Object} NeighborhoodProgress
+ * @property {string}  id
+ * @property {string}  name
+ * @property {'Boston'|'Cambridge'} city
+ * @property {string}  color
+ * @property {number}  entries   dex entries in this neighborhood
+ * @property {boolean} visited
+ * @property {string}  pet_id    the pet that lives here
  */
 
 /**
@@ -192,7 +227,7 @@ function apiError(code, message) {
   err.code = code;
   return err;
 }
-// Codes: 'NOT_SIGNED_IN' | 'NOT_FOUND' | 'ALREADY_IN_DEX'
+// Codes: 'NOT_SIGNED_IN' | 'NOT_FOUND' | 'ALREADY_IN_DEX' | 'NOT_UNLOCKED'
 
 /* ---------------------------------------------------------------------------
  * Mock implementation
@@ -202,7 +237,33 @@ const DEX_KEY = 'bostonhacks.mock.dex';
 const SIGNED_IN_KEY = 'bostonhacks.mock.signedIn';
 
 const MOCK_USER = { id: 'mock-user', email: 'student@example.com', display_name: 'Mock Student' };
-const MOCK_PET_NAME = 'Mochi';
+const ACTIVE_PET_KEY = 'bostonhacks.mock.activePet';
+const PET_NICKNAMES_KEY = 'bostonhacks.mock.petNicknames';
+
+/* Which neighborhood is a point in? (The real backend does this once with a PostGIS join.) */
+function inRing(lng, lat, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    if (yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+function neighborhoodAt(lng, lat) {
+  for (const f of neighborhoods.features) {
+    const polygons = f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates;
+    const hit = polygons.some((poly) => inRing(lng, lat, poly[0]) && !poly.slice(1).some((hole) => inRing(lng, lat, hole)));
+    if (hit) return { id: f.properties.id, name: f.properties.name };
+  }
+  return null;
+}
+
+/** The mock restaurants, each tagged with the neighborhood it is in. */
+const mockPlaces = rawPlaces.map((p) => ({ ...p, neighborhood: neighborhoodAt(p.lng, p.lat) }));
+const hoodById = Object.fromEntries(neighborhoods.features.map((f) => [f.properties.id, f.properties]));
+const starterPet = pets.find((p) => p.is_starter);
 
 // Simulated latency so the UI has to handle loading states.
 const delay = (ms = 150) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -363,6 +424,58 @@ async function fetchVehicleJson() {
   throw new Error('MBTA vehicles feed unreachable');
 }
 
+const entryXp = (e) => XP_PER_ENTRY + (e.photo_url ? XP_PHOTO_BONUS : 0);
+const neighborhoodOfEntry = (e) => mockPlaces.find((p) => p.id === e.place_id)?.neighborhood?.id ?? null;
+
+/** XP needed to reach the next level (the inverse of levelFromXp). */
+const nextLevelXp = (xp) => (levelFromXp(xp) + 1) ** 2 * 10;
+
+/**
+ * Every pet's progress, derived from the dex. A neighborhood's pet unlocks with your first entry
+ * there and levels up with the XP from entries there. The starter is always unlocked and levels with
+ * all your entries.
+ * @returns {Pet[]}
+ */
+function petStates(dex, activeId) {
+  const byHood = {};
+  for (const e of dex) {
+    const id = neighborhoodOfEntry(e);
+    if (!id) continue;
+    const slot = (byHood[id] ??= { entries: 0, xp: 0, first: null });
+    slot.entries += 1;
+    slot.xp += entryXp(e);
+    if (!slot.first || e.visited_at < slot.first) slot.first = e.visited_at;
+  }
+  const totalXp = dex.reduce((sum, e) => sum + entryXp(e), 0);
+  const nicknames = readStore(PET_NICKNAMES_KEY, {});
+
+  return pets.map((p) => {
+    const slot = p.is_starter ? { entries: dex.length, xp: totalXp, first: null } : byHood[p.neighborhood_id];
+    const xp = slot?.xp ?? 0;
+    return {
+      ...p,
+      nickname: nicknames[p.id] ?? null,
+      display_name: nicknames[p.id] ?? p.name,
+      neighborhood: p.neighborhood_id ? { id: p.neighborhood_id, name: hoodById[p.neighborhood_id].name } : null,
+      unlocked: p.is_starter || Boolean(slot),
+      unlocked_at: slot?.first ?? null,
+      entries: slot?.entries ?? 0,
+      xp,
+      level: levelFromXp(xp),
+      next_level_xp: nextLevelXp(xp),
+      active: p.id === activeId,
+    };
+  });
+}
+
+/** The active pet is the one the user picked, as long as it is unlocked; otherwise the starter. */
+function activePetId(dex) {
+  const saved = readStore(ACTIVE_PET_KEY, null);
+  const pick = pets.find((p) => p.id === saved);
+  if (!pick || pick.is_starter) return starterPet.id;
+  return dex.some((e) => neighborhoodOfEntry(e) === pick.neighborhood_id) ? pick.id : starterPet.id;
+}
+
 const mockApi = {
   /** @param {PlaceFilters} [filters] @returns {Promise<Place[]>} */
   async getPlaces(filters = {}) {
@@ -507,9 +620,83 @@ const mockApi = {
   },
 
   /**
+   * All 25 pets with their progress. Signed out: only the starter is unlocked.
+   * @returns {Promise<Pet[]>}
+   */
+  async getPets() {
+    await delay();
+    const dex = isSignedIn() ? readStore(DEX_KEY, []) : [];
+    return petStates(dex, activePetId(dex));
+  },
+
+  /**
+   * Choose which unlocked pet shows on the dashboard.
+   * @param {string} petId
+   * @returns {Promise<Pet>}
+   * @throws NOT_SIGNED_IN, NOT_FOUND, or NOT_UNLOCKED
+   */
+  async setActivePet(petId) {
+    await delay();
+    if (!isSignedIn()) throw apiError('NOT_SIGNED_IN', 'Sign in to choose a pet');
+    const dex = readStore(DEX_KEY, []);
+    const pet = petStates(dex, null).find((p) => p.id === petId);
+    if (!pet) throw apiError('NOT_FOUND', `Pet not found: ${petId}`);
+    if (!pet.unlocked) throw apiError('NOT_UNLOCKED', `${pet.name} is not unlocked yet. Visit ${pet.neighborhood.name} to unlock it.`);
+    writeStore(ACTIVE_PET_KEY, petId);
+    return { ...pet, active: true };
+  },
+
+  /**
+   * Give an unlocked pet a nickname (up to 24 characters). An empty nickname clears it.
+   * @param {string} petId
+   * @param {string} nickname
+   * @returns {Promise<Pet>}
+   * @throws NOT_SIGNED_IN, NOT_FOUND, or NOT_UNLOCKED
+   */
+  async setPetNickname(petId, nickname) {
+    await delay();
+    if (!isSignedIn()) throw apiError('NOT_SIGNED_IN', 'Sign in to name a pet');
+    const dex = readStore(DEX_KEY, []);
+    const pet = petStates(dex, null).find((p) => p.id === petId);
+    if (!pet) throw apiError('NOT_FOUND', `Pet not found: ${petId}`);
+    if (!pet.unlocked) throw apiError('NOT_UNLOCKED', `${pet.name} is not unlocked yet`);
+    const clean = String(nickname ?? '').trim().slice(0, 24);
+    const all = readStore(PET_NICKNAMES_KEY, {});
+    if (clean) all[petId] = clean;
+    else delete all[petId];
+    writeStore(PET_NICKNAMES_KEY, all);
+    return petStates(dex, activePetId(dex)).find((p) => p.id === petId);
+  },
+
+  /**
+   * How far along each of the 24 neighborhoods the user is.
+   * @returns {Promise<NeighborhoodProgress[]>} sorted by name
+   */
+  async getNeighborhoodProgress() {
+    await delay();
+    const dex = isSignedIn() ? readStore(DEX_KEY, []) : [];
+    const counts = {};
+    for (const e of dex) {
+      const id = neighborhoodOfEntry(e);
+      if (id) counts[id] = (counts[id] ?? 0) + 1;
+    }
+    return neighborhoods.features
+      .map((f) => ({
+        id: f.properties.id,
+        name: f.properties.name,
+        city: f.properties.city,
+        color: f.properties.color,
+        entries: counts[f.properties.id] ?? 0,
+        visited: Boolean(counts[f.properties.id]),
+        pet_id: pets.find((p) => p.neighborhood_id === f.properties.id).id,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  },
+
+  /**
    * @param {string} placeId
    * @param {{favoriteDish?: string, myRating?: number, photo?: File}} [extra]
-   * @returns {Promise<DexEntry>}
+   * @returns {Promise<DexEntry>} includes `unlocked_pet` when this entry unlocked a new neighborhood pet
    */
   async addToDex(placeId, { favoriteDish = null, myRating = null, photo = null } = {}) {
     await delay();
@@ -529,8 +716,16 @@ const mockApi = {
       photo_url: photo ? await fileToDataUrl(photo) : null,
       visited_at: new Date().toISOString(),
     };
-    writeStore(DEX_KEY, [...dex, entry]);
-    return entry;
+    const nextDex = [...dex, entry];
+    writeStore(DEX_KEY, nextDex);
+
+    // Did this entry unlock a neighborhood pet? (First entry in that neighborhood.)
+    const hood = mockPlaces.find((p) => p.id === placeId).neighborhood?.id;
+    const firstThere = hood && !dex.some((e) => neighborhoodOfEntry(e) === hood);
+    const unlocked_pet = firstThere
+      ? petStates(nextDex, activePetId(nextDex)).find((p) => p.neighborhood_id === hood)
+      : null;
+    return { ...entry, unlocked_pet };
   },
 
   /** @returns {Promise<Profile|null>} null when signed out */
@@ -538,14 +733,13 @@ const mockApi = {
     await delay();
     if (!isSignedIn()) return null;
     const dex = readStore(DEX_KEY, []);
-    const xp = dex.reduce(
-      (sum, e) => sum + XP_PER_ENTRY + (e.photo_url ? XP_PHOTO_BONUS : 0),
-      0,
-    );
+    const xp = dex.reduce((sum, e) => sum + entryXp(e), 0);
+    const activeId = activePetId(dex);
     return {
       id: MOCK_USER.id,
       display_name: MOCK_USER.display_name,
-      pet_name: MOCK_PET_NAME,
+      pet_name: petStates(dex, activeId).find((p) => p.id === activeId).display_name,
+      active_pet_id: activeId,
       xp,
       level: levelFromXp(xp),
     };
@@ -596,6 +790,8 @@ const mockApi = {
   async resetDemoData() {
     await delay(50);
     writeStore(DEX_KEY, []);
+    writeStore(ACTIVE_PET_KEY, null);
+    writeStore(PET_NICKNAMES_KEY, {});
     writeStore(SIGNED_IN_KEY, false);
   },
 };
@@ -625,6 +821,10 @@ export const {
   getRoutes,
   getStations,
   getNeighborhoods,
+  getPets,
+  setActivePet,
+  setPetNickname,
+  getNeighborhoodProgress,
   getVehicles,
   getStamps,
   getDex,
