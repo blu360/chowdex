@@ -83,6 +83,38 @@ function simplify(points, tolerance) {
 
 const round5 = (n) => Math.round(n * 1e5) / 1e5;
 
+// The app only covers Boston and Cambridge. Stations elsewhere are dropped, and each line is
+// cut off at its last station inside this area (the stretch between two kept stations stays).
+const ALLOWED_MUNICIPALITIES = new Set(['Boston', 'Cambridge']);
+
+// Meters per degree at Boston's latitude, good enough for "which vertex is nearest".
+const M_PER_DEG_LNG = 82400;
+const M_PER_DEG_LAT = 111200;
+
+/** Slices a full-resolution polyline to the span between the first and last station near it. */
+function trimToStations(points, stationList, maxDistM = 250) {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const st of stationList) {
+    let best = Infinity;
+    let bestIdx = -1;
+    points.forEach(([lng, lat], i) => {
+      const dx = (lng - st.lng) * M_PER_DEG_LNG;
+      const dy = (lat - st.lat) * M_PER_DEG_LAT;
+      const d = Math.hypot(dx, dy);
+      if (d < best) {
+        best = d;
+        bestIdx = i;
+      }
+    });
+    if (best <= maxDistM) {
+      lo = Math.min(lo, bestIdx);
+      hi = Math.max(hi, bestIdx);
+    }
+  }
+  return hi >= lo ? points.slice(lo, hi + 1) : [];
+}
+
 async function main() {
   console.log('Fetching routes...');
   const routesRes = await get(`/routes?filter[id]=${ROUTE_IDS.join(',')}`);
@@ -90,6 +122,8 @@ async function main() {
 
   const lines = {};
   const stations = {};
+  const rawShapes = {}; // full-resolution polylines per line, trimmed after all stations are known
+  let skipped = 0;
 
   for (const routeId of ROUTE_IDS) {
     const lineId = LINE_OF(routeId);
@@ -101,13 +135,18 @@ async function main() {
       color: `#${attrs.color}`,
       station_ids: [],
       shapes: [],
+      shape_routes: [], // shape_routes[i] = ids of the routes (e.g. "Green-B") that run along shapes[i]
     };
 
     console.log(`Fetching stations and shape for ${routeId}...`);
     const stops = await get(`/stops?filter[route]=${routeId}&filter[location_type]=1`);
     for (const s of stops.data) {
-      const { name, latitude, longitude } = s.attributes;
+      const { name, latitude, longitude, municipality } = s.attributes;
       if (latitude == null || longitude == null) continue;
+      if (!ALLOWED_MUNICIPALITIES.has(municipality)) {
+        skipped++;
+        continue;
+      }
       stations[s.id] ??= { id: s.id, name, lat: round5(latitude), lng: round5(longitude), lines: [] };
       if (!stations[s.id].lines.includes(lineId)) stations[s.id].lines.push(lineId);
       if (!lines[lineId].station_ids.includes(s.id)) lines[lineId].station_ids.push(s.id);
@@ -131,15 +170,45 @@ async function main() {
         seen.add(key);
         return true;
       })
-      .slice(0, 2);
-    for (const pts of decoded) {
-      lines[lineId].shapes.push(simplify(pts, 0.00015).map(([lng, lat]) => [round5(lng), round5(lat)]));
+      .slice(0, 6); // trimmed and deduped again below, once we know which parts are in bounds
+    (rawShapes[lineId] ??= []).push(...decoded.map((pts) => ({ routeId, pts })));
+  }
+
+  // Cut each line off at its last in-bounds station, then simplify for the map.
+  for (const line of Object.values(lines)) {
+    const lineStations = line.station_ids.map((id) => stations[id]);
+    const seenEnds = new Map(); // endpoints key -> index into line.shapes
+    for (const { routeId, pts } of rawShapes[line.id]) {
+      const trimmed = trimToStations(pts, lineStations);
+      if (trimmed.length < 2) continue;
+      // Skip tiny leftovers (depot spurs, shuttle pieces) and shapes identical to one already kept.
+      const lengthM = trimmed.slice(1).reduce(
+        (sum, [lng, lat], i) =>
+          sum + Math.hypot((lng - trimmed[i][0]) * M_PER_DEG_LNG, (lat - trimmed[i][1]) * M_PER_DEG_LAT),
+        0,
+      );
+      if (lengthM < 800) continue;
+      const key = [trimmed[0], trimmed[trimmed.length - 1]]
+        .map(([lng, lat]) => `${lng.toFixed(3)},${lat.toFixed(3)}`)
+        .sort()
+        .join('|');
+      if (seenEnds.has(key)) {
+        // Same path already kept: just remember that this route runs along it too.
+        const routes = line.shape_routes[seenEnds.get(key)];
+        if (!routes.includes(routeId)) routes.push(routeId);
+        continue;
+      }
+      seenEnds.set(key, line.shapes.length);
+      line.shapes.push(simplify(trimmed, 0.00015).map(([lng, lat]) => [round5(lng), round5(lat)]));
+      line.shape_routes.push([routeId]);
     }
   }
+  console.log(`Dropped ${skipped} station entries outside Boston and Cambridge.`);
 
   const output = {
     generated_at: new Date().toISOString(),
     source: 'MBTA V3 API (api-v3.mbta.com)',
+    coverage: [...ALLOWED_MUNICIPALITIES],
     lines: Object.values(lines),
     stations: Object.values(stations).sort((a, b) => a.name.localeCompare(b.name)),
   };

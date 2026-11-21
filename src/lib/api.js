@@ -9,6 +9,7 @@
  */
 import mockPlaces from './mock/places.json';
 import mbta from './mock/mbta.json';
+import neighborhoods from './mock/neighborhoods.json';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
 
@@ -106,6 +107,7 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
  * @property {string}        color         hex, the official line color
  * @property {string[]}      station_ids
  * @property {number[][][]}  shapes        polylines as [lng, lat] pairs, ready for GeoJSON
+ * @property {string[][]}    shape_routes  shape_routes[i] = ids of the routes (e.g. "Green-B") that run along shapes[i]
  */
 
 /**
@@ -117,6 +119,36 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
  * @property {number} total
  * @property {number} percent   0 to 100, rounded down
  * @property {'none'|'bronze'|'silver'|'gold'} tier
+ */
+
+/**
+ * One of the 24 areas (23 Boston neighborhoods + Cambridge), as a GeoJSON Feature.
+ * @typedef {Object} Neighborhood
+ * @property {'Feature'} type
+ * @property {{type: 'Polygon'|'MultiPolygon', coordinates: number[][][]|number[][][][]}} geometry
+ * @property {{id: string, name: string, city: 'Boston'|'Cambridge', color: string}} properties
+ *           `color` is a hex color, unique per neighborhood. Draw it translucent.
+ */
+
+/**
+ * A subway train. Only trains on the drawn Boston and Cambridge lines are returned.
+ * @typedef {Object} Vehicle
+ * @property {string}      id
+ * @property {string}      line      "Red" | "Orange" | "Green" | "Blue"
+ * @property {string}      route     route id, e.g. "Green-B"
+ * @property {number}      lat
+ * @property {number}      lng
+ * @property {number|null} bearing   degrees clockwise from north
+ * @property {string|null} status    "IN_TRANSIT_TO" | "STOPPED_AT" | "INCOMING_AT"
+ * @property {string|null} label     train number
+ */
+
+/**
+ * @typedef {Object} VehicleSnapshot
+ * @property {Vehicle[]|null} vehicles   null when the live feed could not be reached
+ * @property {boolean}        simulated  true when the trains are made up for demos (sped up)
+ * @property {boolean}        [error]    true when `vehicles` is null
+ * @property {string}         updated_at ISO timestamp
  */
 
 /**
@@ -226,6 +258,111 @@ function distanceM(lat1, lng1, lat2, lng2) {
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
+// Meters per degree at Boston's latitude: accurate enough for city-scale geometry.
+const M_PER_DEG_LNG = 82400;
+const M_PER_DEG_LAT = 111200;
+
+/** Distance in meters from a point to a polyline of [lng, lat] pairs. */
+function distanceToPolylineM(lng, lat, polyline) {
+  const px = lng * M_PER_DEG_LNG;
+  const py = lat * M_PER_DEG_LAT;
+  let best = Infinity;
+  for (let i = 0; i < polyline.length - 1; i++) {
+    const ax = polyline[i][0] * M_PER_DEG_LNG;
+    const ay = polyline[i][1] * M_PER_DEG_LAT;
+    const dx = polyline[i + 1][0] * M_PER_DEG_LNG - ax;
+    const dy = polyline[i + 1][1] * M_PER_DEG_LAT - ay;
+    const t = dx === 0 && dy === 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)));
+    best = Math.min(best, Math.hypot(px - (ax + t * dx), py - (ay + t * dy)));
+  }
+  return best;
+}
+
+const isNearDrawnLines = (lng, lat, maxM = 300) =>
+  mbta.lines.some((line) => line.shapes.some((shape) => distanceToPolylineM(lng, lat, shape) <= maxM));
+
+/** Total length of a polyline in meters. */
+function polylineLengthM(polyline) {
+  let total = 0;
+  for (let i = 0; i < polyline.length - 1; i++) {
+    total += Math.hypot(
+      (polyline[i + 1][0] - polyline[i][0]) * M_PER_DEG_LNG,
+      (polyline[i + 1][1] - polyline[i][1]) * M_PER_DEG_LAT,
+    );
+  }
+  return total;
+}
+
+/** The point `distM` meters along a polyline, with the heading there. Returns [lng, lat, bearing]. */
+function pointAlong(polyline, distM) {
+  let remaining = distM;
+  for (let i = 0; i < polyline.length - 1; i++) {
+    const dx = (polyline[i + 1][0] - polyline[i][0]) * M_PER_DEG_LNG;
+    const dy = (polyline[i + 1][1] - polyline[i][1]) * M_PER_DEG_LAT;
+    const len = Math.hypot(dx, dy);
+    if (remaining <= len || i === polyline.length - 2) {
+      const t = len === 0 ? 0 : Math.min(1, remaining / len);
+      return [
+        polyline[i][0] + (polyline[i + 1][0] - polyline[i][0]) * t,
+        polyline[i][1] + (polyline[i + 1][1] - polyline[i][1]) * t,
+        (Math.atan2(dx, dy) * 180) / Math.PI + (dx < 0 ? 360 : 0),
+      ];
+    }
+    remaining -= len;
+  }
+  return [...polyline[0], 0];
+}
+
+/**
+ * Made-up trains for demos and for when the live feed is unreachable: a few per line shape,
+ * shuttling back and forth, deliberately faster than real trains so the motion is easy to see.
+ */
+function simulateVehicles(now = Date.now()) {
+  const trains = [];
+  for (const line of mbta.lines) {
+    line.shapes.forEach((shape, shapeIndex) => {
+      const total = polylineLengthM(shape);
+      const count = Math.max(2, Math.round(total / 3500));
+      for (let k = 0; k < count; k++) {
+        const phase = (now / 600000 + k / count + shapeIndex * 0.13) % 1; // one round trip per 10 minutes
+        const progress = phase < 0.5 ? phase * 2 : 2 - phase * 2;
+        const [lng, lat, bearing] = pointAlong(shape, progress * total);
+        trains.push({
+          id: `sim-${line.id}-${shapeIndex}-${k}`,
+          route: line.shape_routes?.[shapeIndex]?.[0] ?? line.id,
+          line: line.id,
+          lat,
+          lng,
+          bearing: phase < 0.5 ? bearing : (bearing + 180) % 360,
+          status: 'IN_TRANSIT_TO',
+          label: null,
+        });
+      }
+    });
+  }
+  return trains;
+}
+
+const VEHICLES_QUERY = 'vehicles?filter%5Broute%5D=Red,Orange,Blue,Green-B,Green-C,Green-D,Green-E';
+
+/**
+ * Tries the dev-server proxy first (it adds our MBTA API key, so the key stays out of the browser),
+ * then the public API directly, which works without a key at a lower rate limit.
+ */
+async function fetchVehicleJson() {
+  for (const base of ['/mbta/', 'https://api-v3.mbta.com/']) {
+    try {
+      const res = await fetch(base + VEHICLES_QUERY);
+      if (!res.ok) continue;
+      const json = await res.json(); // a host that serves index.html for /mbta/ fails here and moves on
+      if (Array.isArray(json.data)) return json;
+    } catch {
+      // try the next source
+    }
+  }
+  throw new Error('MBTA vehicles feed unreachable');
+}
+
 const mockApi = {
   /** @param {PlaceFilters} [filters] @returns {Promise<Place[]>} */
   async getPlaces(filters = {}) {
@@ -282,10 +419,49 @@ const mockApi = {
     return mbta.lines;
   },
 
-  /** @returns {Promise<Station[]>} every subway station */
+  /** @returns {Promise<Station[]>} every subway station in Boston and Cambridge */
   async getStations() {
     await delay();
     return mbta.stations;
+  },
+
+  /**
+   * Where the trains are right now. Mock mode reads the public MBTA vehicles feed directly
+   * (no key needed at this rate); the real backend should proxy it through an edge function.
+   * @param {{simulate?: boolean}} [options] simulate: skip the live feed and use made-up trains
+   * @returns {Promise<VehicleSnapshot>}
+   */
+  async getVehicles({ simulate = false } = {}) {
+    const updated_at = new Date().toISOString();
+    if (simulate) return { vehicles: simulateVehicles(), simulated: true, updated_at };
+    try {
+      const json = await fetchVehicleJson();
+      const vehicles = json.data
+        .filter((v) => v.attributes.latitude != null && v.attributes.longitude != null)
+        .map((v) => {
+          const route = v.relationships.route.data.id;
+          return {
+            id: v.id,
+            route,
+            line: route.startsWith('Green') ? 'Green' : route,
+            lat: v.attributes.latitude,
+            lng: v.attributes.longitude,
+            bearing: v.attributes.bearing ?? null,
+            status: v.attributes.current_status ?? null,
+            label: v.attributes.label ?? null,
+          };
+        })
+        .filter((v) => isNearDrawnLines(v.lng, v.lat));
+      return { vehicles, simulated: false, updated_at };
+    } catch {
+      return { vehicles: null, simulated: false, error: true, updated_at };
+    }
+  },
+
+  /** @returns {Promise<{type: 'FeatureCollection', features: Neighborhood[]}>} the 24 neighborhood areas */
+  async getNeighborhoods() {
+    await delay();
+    return { type: 'FeatureCollection', features: neighborhoods.features };
   },
 
   /**
@@ -448,6 +624,8 @@ export const {
   getArrivals,
   getRoutes,
   getStations,
+  getNeighborhoods,
+  getVehicles,
   getStamps,
   getDex,
   addToDex,
