@@ -27,10 +27,9 @@ export default function TrainTransition({ train }) {
           <Train color={t.color} />
         </div>
       </div>
-      <p className="transition-text" aria-hidden="true">
-        All aboard<span className="dots"><i>.</i><i>.</i><i>.</i></span>
-      </p>
-      <p className="transition-line" aria-hidden="true">{t.name}</p>
+      <div className="transition-dots" aria-hidden="true">
+        <i /><i /><i />
+      </div>
     </div>
   );
 }

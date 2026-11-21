@@ -86,6 +86,27 @@ export function snapToTrack(tracks, vehicle, previousKey) {
   return best;
 }
 
+/** Smallest angle between two compass bearings, 0 to 180 degrees. */
+export function angleDiff(a, b) {
+  const d = Math.abs(a - b) % 360;
+  return d > 180 ? 360 - d : d;
+}
+
+/** The direction of the track `s` meters along it, in degrees clockwise from north (as if traveling forward). */
+export function headingOnTrack(track, s) {
+  const d = Math.max(0, Math.min(track.length, s));
+  let lo = 0;
+  let hi = track.cum.length - 2;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (track.cum[mid] <= d) lo = mid;
+    else hi = mid - 1;
+  }
+  const dx = (track.pts[lo + 1][0] - track.pts[lo][0]) * M_PER_DEG_LNG;
+  const dy = (track.pts[lo + 1][1] - track.pts[lo][1]) * M_PER_DEG_LAT;
+  return ((Math.atan2(dx, dy) * 180) / Math.PI + 360) % 360;
+}
+
 /** The [lng, lat] point `s` meters along a track (clamped to its ends). */
 export function pointOnTrack(track, s) {
   const d = Math.max(0, Math.min(track.length, s));

@@ -12,15 +12,18 @@ import {
   getVehicles,
 } from '../../lib/api.js';
 import { MAX_BOUNDS, MIN_ZOOM, VIEW_BOUNDS, pickLabelFont, styleById, tweakBasemap } from './mapStyles.js';
-import { buildTracks, pointOnTrack, snapToTrack } from './trainTrack.js';
+import { angleDiff, buildTracks, headingOnTrack, pointOnTrack, snapToTrack } from './trainTrack.js';
+import { registerTrainIcons } from './trainIcons.js';
 
 // Vite serves dependencies from a different path than MapLibre expects, so tell it where its worker is.
 setWorkerUrl(workerUrl);
 
 const EMPTY = { type: 'FeatureCollection', features: [] };
 const INK = '#111111';
+const NAVY = '#14407A';
 const YELLOW = '#F7DD04';
 const TRAIN_POLL_MS = 8000;
+const TRAIN_ICON_MIN_ZOOM = 13.5; // trains are hidden below this zoom
 const DEFAULT_GLIDE_MS = 12000;
 const MIN_GLIDE_MS = 5000;
 const MAX_GLIDE_MS = 25000;
@@ -178,27 +181,22 @@ function installLayers(map, { data, dark, layers }) {
 
   // Live trains
   map.addSource('trains', { type: 'geojson', data: data.trains });
-  map.addLayer({
-    id: 'trains-halo',
-    type: 'circle',
-    source: 'trains',
-    layout: { visibility: trainVisibility },
-    paint: {
-      'circle-color': ['get', 'color'],
-      'circle-opacity': 0.25,
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 7, 15, 17],
-    },
-  });
+  // Trains only appear once you zoom in close, as a little car that faces the way it is going.
+  registerTrainIcons(map, Object.fromEntries(data.routes.map((r) => [r.id, r.color])));
   map.addLayer({
     id: 'trains',
-    type: 'circle',
+    type: 'symbol',
     source: 'trains',
-    layout: { visibility: trainVisibility },
-    paint: {
-      'circle-color': ['get', 'color'],
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 3.5, 15, 7],
-      'circle-stroke-color': INK,
-      'circle-stroke-width': 2,
+    minzoom: TRAIN_ICON_MIN_ZOOM,
+    layout: {
+      visibility: trainVisibility,
+      'icon-image': ['concat', 'train-', ['get', 'line'], ['case', ['==', ['get', 'left'], 1], '-l', '-r']],
+      'icon-rotate': ['get', 'rot'],
+      'icon-rotation-alignment': 'map',
+      'icon-pitch-alignment': 'map',
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+      'icon-size': ['interpolate', ['linear'], ['zoom'], TRAIN_ICON_MIN_ZOOM, 0.5, 15, 0.9],
     },
   });
 
@@ -210,9 +208,9 @@ function installLayers(map, { data, dark, layers }) {
     source: 'places',
     paint: {
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 4.5, 15, 9],
-      'circle-color': ['case', ['==', ['get', 'collected'], 1], YELLOW, dark ? '#dbe7fb' : INK],
-      'circle-stroke-color': ['case', ['==', ['get', 'collected'], 1], INK, dark ? '#0a1526' : '#ffffff'],
-      'circle-stroke-width': 2.5,
+      'circle-color': ['case', ['==', ['get', 'collected'], 1], YELLOW, dark ? '#dbe7fb' : NAVY],
+      'circle-stroke-color': dark ? '#0a1526' : '#ffffff',
+      'circle-stroke-width': 2,
     },
   });
   map.addLayer({
@@ -316,14 +314,14 @@ export default function MapView({
       map.on('mousemove', (e) => {
         const features = hit(e.point);
         const top = features[0];
-        map.getCanvas().style.cursor = top && top.layer.id !== 'trains' ? 'pointer' : '';
+        map.getCanvas().style.cursor = top && !top.layer.id.startsWith('trains') ? 'pointer' : '';
 
         // A small name tag on hover.
         if (top) {
           const key = `${top.layer.id}:${top.properties.id}`;
           if (key !== tipKey) {
             tipKey = key;
-            const text = top.layer.id === 'trains' ? `${top.properties.line} Line train` : top.properties.name;
+            const text = top.layer.id.startsWith('trains') ?`${top.properties.line} Line train` : top.properties.name;
             tip.setLngLat(top.geometry.coordinates).setText(text).addTo(map);
           }
         } else if (tipKey) {
@@ -400,7 +398,7 @@ export default function MapView({
     const map = mapRef.current;
     if (!ready || !map) return undefined;
     const visibility = layers.trains ? 'visible' : 'none';
-    for (const id of ['trains-halo', 'trains']) {
+    for (const id of ['trains']) {
       if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', visibility);
     }
     if (!layers.trains) {
@@ -417,7 +415,6 @@ export default function MapView({
     const trackByKey = new Map(tracks.map((t) => [t.key, t]));
 
     const distanceOf = (t, now) => t.from + (t.to - t.from) * Math.min(1, (now - t.startedAt) / t.duration);
-    const positionOf = (t, now) => pointOnTrack(trackByKey.get(t.trackKey), distanceOf(t, now));
 
     async function poll() {
       let snap;
@@ -442,11 +439,15 @@ export default function MapView({
         if (!hit) continue;
         seen.add(v.id);
         const color = lineColorsRef.current[v.line] ?? '#1d2b45';
-        const place = () =>
+        const place = () => {
+          // Which way along the track is it headed? Compare the feed's bearing with the track's direction.
+          const along = headingOnTrack(hit.track, hit.s);
+          const dir = v.bearing != null && angleDiff(v.bearing, along) > 90 ? -1 : 1;
           live.set(v.id, {
             trackKey: hit.track.key, from: hit.s, to: hit.s, startedAt: now,
-            duration: DEFAULT_GLIDE_MS, lastChangeAt: now, line: v.line, color,
+            duration: DEFAULT_GLIDE_MS, lastChangeAt: now, line: v.line, color, dir,
           });
+        };
 
         // New train, or it moved onto another track (a branch): put it there without animating.
         if (!prev || prev.trackKey !== hit.track.key) {
@@ -466,7 +467,10 @@ export default function MapView({
         }
         // Glide over about as long as this train took to report its last move, so it keeps moving smoothly.
         const duration = Math.min(MAX_GLIDE_MS, Math.max(MIN_GLIDE_MS, now - prev.lastChangeAt));
-        live.set(v.id, { ...prev, from: current, to: target, startedAt: now, duration, lastChangeAt: now, color });
+        live.set(v.id, {
+          ...prev, from: current, to: target, startedAt: now, duration, lastChangeAt: now, color,
+          dir: target > prev.to ? 1 : -1,
+        });
       }
       for (const id of [...live.keys()]) if (!seen.has(id)) live.delete(id);
       latest.current.onTrainsInfo?.({ count: live.size, simulated: snap.simulated, error: false });
@@ -477,11 +481,18 @@ export default function MapView({
       const now = performance.now();
       const fc = {
         type: 'FeatureCollection',
-        features: [...live].map(([id, t]) => ({
-          type: 'Feature',
-          geometry: { type: 'Point', coordinates: positionOf(t, now) },
-          properties: { id, line: t.line, color: t.color },
-        })),
+        features: [...live].map(([id, t]) => {
+          const track = trackByKey.get(t.trackKey);
+          const s = distanceOf(t, now);
+          // The icon points right or left (never upside down) and is rotated to follow the track.
+          const heading = (headingOnTrack(track, s) + (t.dir < 0 ? 180 : 0)) % 360;
+          const left = heading >= 180;
+          return {
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: pointOnTrack(track, s) },
+            properties: { id, line: t.line, color: t.color, left: left ? 1 : 0, rot: left ? heading - 270 : heading - 90 },
+          };
+        }),
       };
       dataRef.current.trains = fc;
       map.getSource('trains')?.setData(fc);

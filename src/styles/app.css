@@ -195,14 +195,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 /* Symbols shared by the legend and search results */
 .sym { display: inline-block; flex: none; width: 14px; height: 14px; border-radius: 50%; }
-.sym-place { background: var(--ink); border: 2px solid #fff; box-shadow: 0 0 0 1.5px var(--ink); }
-.sym-collected { background: var(--yellow); border: 2.5px solid var(--ink); }
+.sym-place { background: #14407a; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(15, 42, 71, 0.35); }
+.sym-collected { background: var(--yellow); border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(15, 42, 71, 0.35); }
 .sym-station { background: #fff; border: 3px solid var(--ink); }
 .sym-stamped {
   border: 3px solid var(--ink);
   background: conic-gradient(var(--red) 0 25%, var(--orange) 0 50%, var(--green) 0 75%, var(--blue) 0);
 }
-.sym-train { background: var(--green); border: 2.5px solid var(--ink); box-shadow: 0 0 0 4px rgba(12, 107, 20, 0.25); }
+.legend-train { width: 22px; height: 15px; flex: none; }
 .sym-hood { border-radius: 4px; opacity: 0.65; border: 2px solid var(--ink); }
 
 /* ---------- Detail panel (place / station) ---------- */
@@ -306,18 +306,15 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .wheel { transform-box: fill-box; transform-origin: center; animation: spin 0.4s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.transition-text {
-  position: absolute; left: 0; right: 0; bottom: 14%; text-align: center;
-  font: 400 clamp(30px, 5.5vw, 58px)/1 var(--font-marker); text-transform: uppercase; letter-spacing: 0.02em;
+/* Loading dots: three bouncing station dots in the line's color */
+.transition-dots { position: absolute; left: 0; right: 0; bottom: 15%; display: flex; justify-content: center; gap: 20px; }
+.transition-dots i {
+  width: 26px; height: 26px; border-radius: 50%; background: var(--line); border: 4px solid var(--ink);
+  animation: dot-bounce 0.75s ease-in-out infinite both;
 }
-.transition-text .dots i { font-style: normal; animation: blink 0.9s infinite both; }
-.transition-text .dots i:nth-child(2) { animation-delay: 0.15s; }
-.transition-text .dots i:nth-child(3) { animation-delay: 0.3s; }
-@keyframes blink { 0%, 60%, 100% { opacity: 0.15; } 30% { opacity: 1; } }
-.transition-line {
-  position: absolute; left: 0; right: 0; bottom: calc(14% - 34px); text-align: center;
-  font: 700 18px var(--font-head); letter-spacing: 0.12em; text-transform: uppercase; color: var(--line);
-}
+.transition-dots i:nth-child(2) { animation-delay: 0.12s; }
+.transition-dots i:nth-child(3) { animation-delay: 0.24s; }
+@keyframes dot-bounce { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-16px); } }
 .transition-cloud { position: absolute; animation: drift 1500ms ease-in-out both; }
 .transition-cloud.c1 { top: 12%; left: 8%; width: 190px; }
 .transition-cloud.c2 { top: 22%; right: 10%; width: 150px; }

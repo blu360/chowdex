@@ -24,7 +24,20 @@ export default function Legend() {
             <h4>Transit</h4>
             <p><i className="sym sym-station" /> Station</p>
             <p><i className="sym sym-stamped" /> Stamped station</p>
-            <p><i className="sym sym-train" /> Live train</p>
+            <p>
+              <svg className="legend-train" viewBox="0 0 44 30" aria-hidden="true" focusable="false">
+                <path d="M7 5H28Q38 6 40 13L41 19Q41 22 37 22H7Q3 22 3 18V9Q3 5 7 5Z" fill="#fff" stroke="#111" strokeWidth="2.6" strokeLinejoin="round" />
+                <path d="M3.6 13.5H40.4L41 19Q41 22 37 22H7Q3 22 3 18Z" fill="#0c6b14" />
+                <path d="M7 5H28Q38 6 40 13L41 19Q41 22 37 22H7Q3 22 3 18V9Q3 5 7 5Z" fill="none" stroke="#111" strokeWidth="2.6" strokeLinejoin="round" />
+                <g fill="#b3b9bf">
+                  {[7, 14.5, 22].map((x) => <rect key={x} x={x} y="7.2" width="6" height="4.2" />)}
+                </g>
+                <g fill="#111">
+                  {[11, 31].map((x) => <circle key={x} cx={x} cy="24.5" r="2.8" />)}
+                </g>
+              </svg>
+              Live train (zoom in)
+            </p>
             <p className="legend-lines">
               {Object.entries(LINE_COLORS).map(([line, color]) => (
                 <span key={line} style={{ background: color }}>{line}</span>
