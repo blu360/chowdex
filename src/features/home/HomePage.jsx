@@ -134,7 +134,7 @@ export default function HomePage({ version, user, profile, onOpenPet, onGo, onEx
               </div>
               <div className="overview-actions">
                 <button className="btn btn-solid" onClick={onSignIn}>Sign in with Google</button>
-                <button className="btn" onClick={onDemo} title="Mock mode: fill the dex with sample places">Try demo data</button>
+                {onDemo && <button className="btn" onClick={onDemo} title="Mock mode: fill the dex with sample places">Try demo data</button>}
               </div>
             </>
           )}

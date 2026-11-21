@@ -206,10 +206,10 @@ export default function DexPage({ version, signedIn, onChange, onExplore, onGo, 
 
         {!signedIn && (
           <div className="notice with-actions">
-            <span>Sign in (or load the demo data) to start your dex.</span>
+            <span>{onDemo ? 'Sign in (or load the demo data) to start your dex.' : 'Sign in to start your dex.'}</span>
             <span className="overview-actions">
               <button className="btn btn-small btn-solid" onClick={onSignIn}>Sign in with Google</button>
-              <button className="btn btn-small" onClick={onDemo}>Try demo data</button>
+              {onDemo && <button className="btn btn-small" onClick={onDemo}>Try demo data</button>}
             </span>
           </div>
         )}

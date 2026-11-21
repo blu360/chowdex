@@ -22,6 +22,8 @@ npm run dev              # http://localhost:5173
 
 The app runs on mock data by default (`VITE_USE_MOCK=true`), so no backend is needed. Use "Load demo data" in the account menu (top right) to fill the dex. `npm run fetch:mbta` refreshes `src/lib/mock/mbta.json` from the MBTA API (Boston and Cambridge stations only). `npm run build:neighborhoods` rebuilds `src/lib/mock/neighborhoods.json`, the 24 colored neighborhood areas.
 
+Real database: apply `supabase/migrations/` in order, then `npm run seed` loads the stations, neighborhoods, pets, and restaurants from OpenStreetMap (set `SUPABASE_DB_URL` to the session-pooler connection string from the Supabase dashboard; see `scripts/seed.mjs`). It is safe to run again.
+
 Keys:
 
 - `VITE_MAPTILER_KEY` is used by the browser, so restrict it to your allowed origins in the MapTiler dashboard.

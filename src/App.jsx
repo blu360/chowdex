@@ -8,6 +8,7 @@ import {
   signOut,
   loadDemoData,
   resetDemoData,
+  IS_MOCK,
 } from './lib/api.js';
 import { useRoute } from './lib/route.js';
 import MapView from './features/map/MapView.jsx';
@@ -182,7 +183,7 @@ export default function App() {
 
   const signedIn = Boolean(user);
   const onSignIn = act(signInWithGoogle);
-  const onDemo = act(loadDemoData);
+  const onDemo = IS_MOCK ? act(loadDemoData) : undefined; // demo data only exists in mock mode
 
   return (
     <div className="app">
@@ -230,10 +231,13 @@ export default function App() {
               ) : (
                 <button className="btn btn-small btn-solid" onClick={onSignIn}>Sign in with Google</button>
               )}
-              <button className="btn btn-small btn-quiet" onClick={onDemo} title="Mock mode: fill the dex with sample places">
-                Load demo data
-              </button>
-              {user && <button className="btn btn-small btn-quiet" onClick={act(resetDemoData)}>Reset</button>}            </div>
+              {onDemo && (
+                <button className="btn btn-small btn-quiet" onClick={onDemo} title="Mock mode: fill the dex with sample places">
+                  Load demo data
+                </button>
+              )}
+              {IS_MOCK && user && <button className="btn btn-small btn-quiet" onClick={act(resetDemoData)}>Reset</button>}
+            </div>
           )}
         </div>
       </header>
