@@ -1,6 +1,19 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import MapView from './MapView.jsx';
-import { DEFAULT_STYLE_ID } from './mapStyles.js';
+import { DEFAULT_STYLE_ID, MAP_STYLES } from './mapStyles.js';
+
+/** True while the whole app is in night mode (App.jsx sets data-theme on <html>). */
+function useNight() {
+  const read = () => document.documentElement.dataset.theme === 'night';
+  const [night, setNight] = useState(read);
+  useEffect(() => {
+    const observer = new MutationObserver(() => setNight(read()));
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    setNight(read());
+    return () => observer.disconnect();
+  }, []);
+  return night;
+}
 
 const NO_FILTERS = {};
 const LAYERS = { neighborhoods: true, trains: false, simulate: false };
@@ -24,6 +37,9 @@ export default function JourneyMap({ version, hoodIds, placeIds = null, bounds =
   const focus = useMemo(() => ({ bounds: JSON.parse(boundsKey) }), [boundsKey]);
   const journey = useMemo(() => ({ hoodIds, placeIds }), [JSON.stringify(hoodIds), JSON.stringify(placeIds)]);
   const noop = () => {};
+  const night = useNight();
+  const darkStyle = MAP_STYLES.find((s) => s.dark);
+  const styleId = night && darkStyle ? darkStyle.id : DEFAULT_STYLE_ID;
 
   return (
     <div className="journey-map" role="group" aria-label={label ?? 'Map of where you have explored'}>
@@ -31,7 +47,7 @@ export default function JourneyMap({ version, hoodIds, placeIds = null, bounds =
         version={version}
         filters={NO_FILTERS}
         focus={focus}
-        styleId={DEFAULT_STYLE_ID}
+        styleId={styleId}
         layers={LAYERS}
         journey={journey}
         onSelectPlace={onSelectPlace ?? noop}

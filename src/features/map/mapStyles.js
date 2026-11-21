@@ -25,6 +25,11 @@ export const MAP_STYLES = KEY
 
 export const DEFAULT_STYLE_ID = 'clean';
 
+/** The dark basemap. It is not in the style picker: the night-mode button in the top bar switches to it. */
+export const NIGHT_STYLE_ID = MAP_STYLES.find((s) => s.dark)?.id ?? null;
+/** The basemaps you can choose between (the daytime ones). */
+export const PICKABLE_STYLES = MAP_STYLES.filter((s) => !s.dark);
+
 export const styleById = (id) => MAP_STYLES.find((s) => s.id === id) ?? MAP_STYLES[0];
 
 /** The default view the map opens at (and the one to return to): Boston and Cambridge, centered. */
@@ -56,7 +61,9 @@ export function tweakBasemap(map, style) {
   const water = style.dark ? '#103258' : '#bcd6f0';
   const waterway = style.dark ? '#103258' : '#a9c8e8';
   const pencilLight = !style.dark && style.tint; // light tinted basemaps get pencil-toned streets and buildings
-  if (style.tint && !map.hasImage('water-doodle')) map.addImage('water-doodle', waterImage(water, style.dark), { pixelRatio: 2 });
+  // One wave image per look: a single shared one would keep the pale daytime ocean after switching to Night.
+  const waterPattern = style.dark ? 'water-doodle-dark' : 'water-doodle-light';
+  if (style.tint && !map.hasImage(waterPattern)) map.addImage(waterPattern, waterImage(water, style.dark), { pixelRatio: 2 });
   const paint = (id, prop, value) => {
     try {
       map.setPaintProperty(id, prop, value);
@@ -73,7 +80,7 @@ export function tweakBasemap(map, style) {
       map.setPaintProperty(layer.id, 'background-color', land);
     } else if (style.tint && sourceLayer === 'water' && layer.type === 'fill') {
       map.setPaintProperty(layer.id, 'fill-color', water);
-      paint(layer.id, 'fill-pattern', 'water-doodle');
+      paint(layer.id, 'fill-pattern', waterPattern);
     } else if (style.tint && sourceLayer === 'waterway' && layer.type === 'line') {
       map.setPaintProperty(layer.id, 'line-color', waterway);
     }
