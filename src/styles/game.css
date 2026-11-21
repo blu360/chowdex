@@ -8,7 +8,9 @@
 
 /* ---------- Typography refresh ---------- */
 :root {
-  --font-head: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Headings and the logo: Fredoka, a rounded display font. Body text and labels stay in DM Sans. */
+  --font-display: 'Fredoka', 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-head: var(--font-display);
   --font-body: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-ui: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --tint: var(--yellow);
@@ -59,7 +61,10 @@ input, textarea, select { font-family: inherit; }
 /* ---------- App shell and navigation ---------- */
 .topbar { min-height: 54px; padding: 6px 12px; gap: 12px; border-bottom-width: 3px; }
 .brand { background: none; border: 0; padding: 0; }
-.brand-name { font-size: 22px; }
+.brand-name {
+  font: 700 24px/1 var(--font-display); letter-spacing: -0.01em; text-transform: none; transform: none;
+}
+.brand-name b { font-weight: 700; background: linear-gradient(transparent 58%, var(--yellow) 58%); }
 .topbar .tabs { display: none; }
 .tab { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-width: 2.5px; }
 .tab .icon { flex: none; }
@@ -105,7 +110,7 @@ input, textarea, select { font-family: inherit; }
 
 @media (min-width: 801px) {
   .topbar { min-height: 60px; padding: 8px 18px; gap: 18px; }
-  .brand-name { font-size: 25px; }
+  .brand-name { font-size: 28px; }
   .topbar .tabs { display: flex; gap: 6px; }
   .bottom-nav { display: none; }
 }
@@ -531,3 +536,10 @@ input, textarea, select { font-family: inherit; }
   .rise, .menu, .reward, .xp i, .buddy .pet-art, .pet-art.xl, .reward-pet .pet-art, .gain.pop, .confetti i { animation: none; }
   .pet-card:hover .pet-art img, .buddy:hover .pet-art img { animation: none; }
 }
+
+/* ---------- Hand-drawn map ---------- */
+/* Markers on the map are outlined in ink now, so the legend and search symbols match. */
+.sym-place { background: var(--sky); border: 2px solid var(--ink); box-shadow: none; }
+.sym-collected { background: var(--yellow); border: 2px solid var(--ink); box-shadow: none; }
+.hood-swatches i { background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.45) 0 2px, transparent 2px 5px); opacity: 0.8; }
+.maplibregl-map { background: #faf6ea; }

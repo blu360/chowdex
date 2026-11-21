@@ -189,7 +189,7 @@ export default function App() {
       <header className="topbar">
         <button className="brand" onClick={() => goTo('home')} aria-label="Chowdex home">
           <Logo />
-          <span className="brand-name">Chowdex</span>
+          <span className="brand-name">Chow<b>dex</b></span>
         </button>
 
         <nav className="tabs" aria-label="Main">

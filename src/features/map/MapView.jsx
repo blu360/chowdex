@@ -14,13 +14,16 @@ import {
 import { DEFAULT_VIEW, MAX_BOUNDS, MIN_ZOOM, PLACE_MIN_ZOOM, pickLabelFont, styleById, tweakBasemap } from './mapStyles.js';
 import { angleDiff, buildTracks, headingOnTrack, pointOnTrack, snapToTrack } from './trainTrack.js';
 import { registerTrainIcons } from './trainIcons.js';
+import { SKETCH_LEVELS, hatchImage, sketchOutlines } from './sketch.js';
 
 // Vite serves dependencies from a different path than MapLibre expects, so tell it where its worker is.
 setWorkerUrl(workerUrl);
 
 const EMPTY = { type: 'FeatureCollection', features: [] };
 const INK = '#111111';
-const NAVY = '#14407A';
+const SKY = '#2F9DD9';
+/** Every neighborhood layer, for the show/hide toggle. */
+const HOOD_LAYERS = ['neighborhoods-fill', 'neighborhoods-hatch', ...SKETCH_LEVELS.map((l) => `neighborhoods-outline-${l.id}`), 'neighborhood-labels'];
 const YELLOW = '#F7DD04';
 const TRAIN_POLL_MS = 8000;
 const TRAIN_ICON_MIN_ZOOM = 14.8; // trains are hidden below this zoom
@@ -65,7 +68,7 @@ function installLayers(map, { data, dark, layers }) {
   const firstSymbol = map.getStyle().layers.find((l) => l.type === 'symbol')?.id;
   const ink = dark ? '#dbe7fb' : '#12305a';
   const halo = dark ? 'rgba(8,16,30,0.85)' : 'rgba(255,255,255,0.92)';
-  const casing = dark ? '#0a1526' : '#ffffff';
+  const casing = dark ? '#0a1526' : INK; // the T lines are outlined in marker ink, like the rest of the app
   const hoodVisibility = layers.neighborhoods ? 'visible' : 'none';
   const trainVisibility = layers.trains ? 'visible' : 'none';
   const hover = ['boolean', ['feature-state', 'hover'], false];
@@ -85,27 +88,58 @@ function installLayers(map, { data, dark, layers }) {
         'fill-color': ['get', 'color'],
         'fill-opacity': [
           'interpolate', ['linear'], ['zoom'],
-          10, ['case', dim, 0.07, lit, 0.5, hover, 0.5, 0.3],
+          10, ['case', dim, 0.07, lit, 0.46, hover, 0.44, 0.24],
           15.5, ['case', dim, 0.04, lit, 0.14, hover, 0.28, 0.08],
         ],
       },
     },
     firstSymbol,
   );
+  // Crayon hatching over the wash, like a hand-colored map. One small tile per neighborhood color.
+  for (const f of data.neighborhoods.features) {
+    const name = `hatch-${f.properties.id}`;
+    if (!map.hasImage(name)) map.addImage(name, hatchImage(f.properties.color, f.properties.id), { pixelRatio: 2 });
+  }
   map.addLayer(
     {
-      id: 'neighborhoods-outline',
-      type: 'line',
+      id: 'neighborhoods-hatch',
+      type: 'fill',
       source: 'neighborhoods',
       layout: { visibility: hoodVisibility },
       paint: {
-        'line-color': ['get', 'color'],
-        'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1, 15, 2],
-        'line-opacity': ['case', dim, 0.3, lit, 1, 0.7],
+        'fill-pattern': ['concat', 'hatch-', ['get', 'id']],
+        'fill-opacity': [
+          'interpolate', ['linear'], ['zoom'],
+          10, ['case', dim, 0.1, lit, 0.7, hover, 0.62, 0.34],
+          15.5, ['case', dim, 0.05, lit, 0.3, hover, 0.3, 0.12],
+        ],
       },
     },
     firstSymbol,
   );
+
+  // Hand-drawn borders in colored pencil: a wobbly redraw of each outline, one drawing per zoom range.
+  // Neighbors each draw their own side of a shared border, so those get the doubled line of a sketch.
+  const outlines = sketchOutlines(data.neighborhoods);
+  for (const level of SKETCH_LEVELS) {
+    map.addSource(`neighborhood-sketch-${level.id}`, { type: 'geojson', data: outlines[level.id] });
+    map.addLayer(
+      {
+        id: `neighborhoods-outline-${level.id}`,
+        type: 'line',
+        source: `neighborhood-sketch-${level.id}`,
+        minzoom: level.minzoom,
+        maxzoom: level.maxzoom,
+        layout: { visibility: hoodVisibility, 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': ['get', 'color'],
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, ['case', ['==', ['get', 'pass'], 2], 0.9, 1.5], 16, ['case', ['==', ['get', 'pass'], 2], 1.5, 2.6]],
+          'line-opacity': ['case', ['==', ['get', 'pass'], 2], 0.5, 0.9],
+        },
+      },
+      firstSymbol,
+    );
+  }
 
   // Subway lines
   map.addSource('lines', {
@@ -126,7 +160,7 @@ function installLayers(map, { data, dark, layers }) {
     type: 'line',
     source: 'lines',
     layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: { 'line-color': casing, 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 4.5, 15, 10], 'line-opacity': 0.9 },
+    paint: { 'line-color': casing, 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 5, 15, 10], 'line-opacity': dark ? 0.9 : 1 },
   });
   map.addLayer({
     id: 'lines',
@@ -213,9 +247,9 @@ function installLayers(map, { data, dark, layers }) {
     minzoom: PLACE_MIN_ZOOM,
     paint: {
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 4.5, 15, 9],
-      'circle-color': ['case', ['==', ['get', 'collected'], 1], YELLOW, dark ? '#dbe7fb' : NAVY],
-      'circle-stroke-color': dark ? '#0a1526' : '#ffffff',
-      'circle-stroke-width': 2,
+      'circle-color': ['case', ['==', ['get', 'collected'], 1], YELLOW, dark ? '#dbe7fb' : SKY],
+      'circle-stroke-color': dark ? '#0a1526' : INK,
+      'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 15, 2.5],
     },
   });
   map.addLayer({
@@ -371,7 +405,7 @@ export default function MapView({
     const map = mapRef.current;
     if (!ready || !map) return;
     const visibility = layers.neighborhoods ? 'visible' : 'none';
-    for (const id of ['neighborhoods-fill', 'neighborhoods-outline', 'neighborhood-labels']) {
+    for (const id of HOOD_LAYERS) {
       if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', visibility);
     }
   }, [ready, layers.neighborhoods]);
@@ -536,6 +570,10 @@ export default function MapView({
     for (const f of dataRef.current.neighborhoods.features) {
       const on = explored.has(f.properties.id);
       map.setFeatureState({ source: 'neighborhoods', id: f.properties.id }, { lit: on, dim: !on });
+    }
+    for (const level of SKETCH_LEVELS) {
+      const id = `neighborhoods-outline-${level.id}`;
+      if (map.getLayer(id)) map.setPaintProperty(id, 'line-opacity', ['case', ['in', ['get', 'id'], ['literal', hoodIds]], ['case', ['==', ['get', 'pass'], 2], 0.55, 1], 0.25]);
     }
     const only = placeIds ? ['in', ['get', 'id'], ['literal', placeIds]] : ['==', ['get', 'collected'], 1];
     for (const id of ['places', 'place-labels']) {
