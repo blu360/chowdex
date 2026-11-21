@@ -20,7 +20,7 @@ export function Sparkle({ className }) {
   return (
     <svg className={className} viewBox="-6 -2 60 60" aria-hidden="true" focusable="false">
       <path d={star} fill="#111" transform="translate(4 4)" />
-      <path d={star} fill="#f7dd04" stroke="#111" strokeWidth="3" strokeLinejoin="round" />
+      <path d={star} style={{ fill: 'var(--accent, #a9d7f7)' }} stroke="#111" strokeWidth="3" strokeLinejoin="round" />
     </svg>
   );
 }

@@ -21,10 +21,10 @@ setWorkerUrl(workerUrl);
 
 const EMPTY = { type: 'FeatureCollection', features: [] };
 const INK = '#111111';
-const SKY = '#2F9DD9';
 /** Every neighborhood layer, for the show/hide toggle. */
 const HOOD_LAYERS = ['neighborhoods-fill', 'neighborhoods-hatch', ...SKETCH_LEVELS.map((l) => `neighborhoods-outline-${l.id}`), 'neighborhood-labels'];
-const YELLOW = '#F7DD04';
+const ACCENT = '#A9D7F7'; // same baby blue as --accent in game.css
+const NAVY = '#14407A';
 const TRAIN_POLL_MS = 8000;
 const TRAIN_ICON_MIN_ZOOM = 14.8; // trains are hidden below this zoom
 const DEFAULT_GLIDE_MS = 12000;
@@ -247,7 +247,7 @@ function installLayers(map, { data, dark, layers }) {
     minzoom: PLACE_MIN_ZOOM,
     paint: {
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 4.5, 15, 9],
-      'circle-color': ['case', ['==', ['get', 'collected'], 1], YELLOW, dark ? '#dbe7fb' : SKY],
+      'circle-color': ['case', ['==', ['get', 'collected'], 1], ACCENT, dark ? '#dbe7fb' : NAVY],
       'circle-stroke-color': dark ? '#0a1526' : INK,
       'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 15, 2.5],
     },

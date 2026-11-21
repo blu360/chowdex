@@ -12,7 +12,7 @@ const FILTERS = [
 ];
 
 /** Starter color when a pet has no neighborhood. */
-export const STARTER_TINT = '#f7dd04';
+export const STARTER_TINT = '#a9d7f7';
 
 /** pet id -> its neighborhood's map color */
 export function tintsFor(hoods) {

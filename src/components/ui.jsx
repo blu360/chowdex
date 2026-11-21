@@ -80,7 +80,7 @@ export function Icon({ name, size = 20 }) {
   );
 }
 
-/** An ink-outlined progress bar that fills when it appears. `color` defaults to Chowdex yellow. */
+/** An ink-outlined progress bar that fills when it appears. `color` defaults to the accent color. */
 export function XpBar({ percent, color, label }) {
   const p = Math.max(0, Math.min(100, percent));
   return (

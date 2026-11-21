@@ -13,7 +13,16 @@
   --font-head: var(--font-display);
   --font-body: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-ui: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --tint: var(--yellow);
+  /*
+    The accent color: a soft baby blue. app.css still calls its accent variables --yellow and
+    --yellow-soft, so they are pointed at the accent here. Change these two lines to re-theme the app.
+  */
+  --accent: #a9d7f7;
+  --accent-soft: #e3f2fd;
+  --yellow: var(--accent);
+  --yellow-soft: var(--accent-soft);
+  --gold: #f2b91f; /* rating stars stay gold */
+  --tint: var(--accent);
   --line-soft: #e6e6e6;
   font-size: 15px;
   line-height: 1.45;
@@ -539,7 +548,11 @@ input, textarea, select { font-family: inherit; }
 
 /* ---------- Hand-drawn map ---------- */
 /* Markers on the map are outlined in ink now, so the legend and search symbols match. */
-.sym-place { background: var(--sky); border: 2px solid var(--ink); box-shadow: none; }
-.sym-collected { background: var(--yellow); border: 2px solid var(--ink); box-shadow: none; }
+.sym-place { background: #14407a; border: 2px solid var(--ink); box-shadow: none; }
+.sym-collected { background: var(--accent); border: 2px solid var(--ink); box-shadow: none; }
 .hood-swatches i { background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.45) 0 2px, transparent 2px 5px); opacity: 0.8; }
 .maplibregl-map { background: #faf6ea; }
+
+/* ---------- Accent follow-ups ---------- */
+.star.on { color: var(--gold); }
+.stars-read { color: var(--gold); }

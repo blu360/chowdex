@@ -33,7 +33,7 @@ export default function RewardToast({ reward, onClose, onOpenPet }) {
       {newPet && (
         <button className="reward-pet" onClick={() => { onOpenPet(newPet.id); onClose(); }}>
           <span className="confetti" aria-hidden="true"><i /><i /><i /><i /><i /><i /></span>
-          <PetArt pet={newPet} tint="#f7dd04" />
+          <PetArt pet={newPet} tint="var(--accent)" />
           <span>
             <b>New pet: {newPet.name}!</b>
             <small>It joined you in {newPet.neighborhood?.name}. Tap to say hi.</small>
