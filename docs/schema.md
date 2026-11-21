@@ -14,7 +14,6 @@ One row per user, created automatically on first Google sign-in.
 | `id` | uuid, PK | same as `auth.users.id` |
 | `display_name` | text | from the Google profile |
 | `active_pet_id` | text, FK to `pets.id` | the pet shown on the dashboard; default `starter`; must be one the user has unlocked |
-| `xp` | int | trainer XP, updated by a trigger on `dex_entries` (all entries) |
 | `created_at` | timestamptz | |
 
 ### `neighborhoods`
@@ -208,6 +207,7 @@ The mock logic is `src/lib/mock/petEngine.js`, a pure function of the dex. The r
 The food journal is `dex_entries`, extended with a free-text `note`. `updateDexEntry()` edits an entry later. `getPetJournal(petId)` shows the journal as one pet sees it: each meal that fed it, with the place, dish, rating, note, photo, whether it was `fed`, and the `xp_gained`, plus stats (meals, photos, rated, average rating, top cuisines, recent dishes, first and last meal). Journaling is the thing rewarded most (photo XP, three journal badges), since it is the part people actually want to keep.
 
 ### SQL notes
+- The migrations in `supabase/migrations/` implement these. Trainer XP and level are not stored: they come from the `profile_stats` view. Views `dex_fed`, `pet_stats`, `feeding_status`, `user_stamps`, `line_progress`, and `neighborhood_progress` cover feeding, pets, stamps, and progress. Badges, pet history, and the journal replay are not in SQL yet.
 - `fed` is `row_number() over (partition by user_id, (visited_at at time zone 'America/New_York')::date order by visited_at) <= 2`.
 - Pet XP is `sum(case when fed then 10 + (photo_path is not null)::int * 5 else 0 end)` grouped by `places.neighborhood_id` (and over everything for the starter).
 - Badge values are `count(distinct ...)` or `count(*) filter (where ...)` over the same rows; `tier_earned_at` needs the replay, or a small `pet_events` table written by a trigger if you want it cheap.
