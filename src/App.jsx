@@ -60,7 +60,7 @@ function loadNight() {
   }
 }
 
-/** The Chowdex clam, turned on its side so its open edge reads as a "C". Art: public/logo.png. */
+/** The Chowdex clam, turned on its side so its open edge reads as a "C". It is the first letter of the wordmark. Art: public/logo.png. */
 function Logo() {
   return <img className="brand-logo" src="/logo.png" alt="" width="40" height="40" draggable="false" />;
 }
@@ -210,8 +210,8 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <button className="brand" onClick={() => goTo('home')} aria-label="Chowdex home">
-          <Logo />
-          <span className="brand-name">Chow<b>dex</b></span>
+          {/* The clam stands in for the "C": it reads as "Chowdex". */}
+          <span className="brand-name"><Logo />how<b>dex</b></span>
         </button>
 
         <nav className="tabs" aria-label="Main">

@@ -754,13 +754,13 @@ input, textarea, select { font-family: inherit; }
 
 /* ---------- The clam logo ---------- */
 /* The logo boils like the pets do, with the gentler filters since it is small. */
-.brand-logo { width: 40px; height: 40px; flex: none; object-fit: contain; animation: boil-sm 0.56s step-end infinite; }
-.brand { gap: 6px; }
+/* It is the "C" of the wordmark, so it is sized in em to sit with the letters. */
+.brand-logo { width: 1.22em; height: 1.22em; margin: 0 -0.03em 0 0; vertical-align: -0.26em; object-fit: contain; animation: boil-sm 0.56s step-end infinite; }
+.brand { gap: 0; margin-left: -6px; }
 @keyframes boil-sm {
   0% { filter: url(#boil-sm-0); }
   25% { filter: url(#boil-sm-1); }
   50% { filter: url(#boil-sm-2); }
   75% { filter: url(#boil-sm-3); }
 }
-@media (min-width: 801px) { .brand-logo { width: 46px; height: 46px; } }
 @media (prefers-reduced-motion: reduce) { .brand-logo { animation: none; } }
