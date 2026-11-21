@@ -29,6 +29,7 @@ const MIN_GLIDE_MS = 5000;
 const MAX_GLIDE_MS = 25000;
 const BACKWARD_NOISE_M = 120; // smaller "backward" moves are GPS noise
 const MAX_JUMP_M = 1500; // bigger moves than this are stale data, not travel
+const JOURNEY_ZOOM = 9.9; // opening zoom of the small journey maps
 
 const stationsGeoJSON = (stations, stampedById, lineColors) => ({
   type: 'FeatureCollection',
@@ -68,6 +69,9 @@ function installLayers(map, { data, dark, layers }) {
   const hoodVisibility = layers.neighborhoods ? 'visible' : 'none';
   const trainVisibility = layers.trains ? 'visible' : 'none';
   const hover = ['boolean', ['feature-state', 'hover'], false];
+  // Journey mode (dashboard and pet profile maps): explored neighborhoods are lit, the rest are dimmed.
+  const lit = ['boolean', ['feature-state', 'lit'], false];
+  const dim = ['boolean', ['feature-state', 'dim'], false];
 
   // Neighborhoods: soft color washes that fade as you zoom in, so streets take over up close.
   map.addSource('neighborhoods', { type: 'geojson', data: data.neighborhoods, promoteId: 'id' });
@@ -81,8 +85,8 @@ function installLayers(map, { data, dark, layers }) {
         'fill-color': ['get', 'color'],
         'fill-opacity': [
           'interpolate', ['linear'], ['zoom'],
-          10, ['case', hover, 0.5, 0.3],
-          15.5, ['case', hover, 0.28, 0.08],
+          10, ['case', dim, 0.07, lit, 0.5, hover, 0.5, 0.3],
+          15.5, ['case', dim, 0.04, lit, 0.14, hover, 0.28, 0.08],
         ],
       },
     },
@@ -97,7 +101,7 @@ function installLayers(map, { data, dark, layers }) {
       paint: {
         'line-color': ['get', 'color'],
         'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1, 15, 2],
-        'line-opacity': 0.7,
+        'line-opacity': ['case', dim, 0.3, lit, 1, 0.7],
       },
     },
     firstSymbol,
@@ -244,6 +248,7 @@ export default function MapView({
   onSelectPlace,
   onSelectStation,
   onTrainsInfo,
+  journey = null, // optional: { hoodIds: string[], placeIds: string[]|null } turns this into a small "where I've been" map
 }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
@@ -256,7 +261,7 @@ export default function MapView({
 
   // Latest props, readable from map event handlers that outlive a render.
   const latest = useRef({});
-  latest.current = { styleId, layers, onSelectPlace, onSelectStation, onTrainsInfo };
+  latest.current = { styleId, layers, onSelectPlace, onSelectStation, onTrainsInfo, journey };
 
   useEffect(() => {
     let cancelled = false;
@@ -275,7 +280,9 @@ export default function MapView({
         container: containerRef.current,
         style: styleById(latest.current.styleId).url,
         center: DEFAULT_VIEW.center,
-        zoom: window.innerWidth < 700 ? DEFAULT_VIEW.mobileZoom : DEFAULT_VIEW.zoom,
+        zoom: latest.current.journey ? JOURNEY_ZOOM : window.innerWidth < 700 ? DEFAULT_VIEW.mobileZoom : DEFAULT_VIEW.zoom,
+        // A small map inside a scrolling page must not hijack the scroll: two fingers (or ctrl + wheel) move it.
+        cooperativeGestures: Boolean(latest.current.journey),
         maxBounds: MAX_BOUNDS,
         minZoom: MIN_ZOOM,
         attributionControl: { compact: true },
@@ -511,12 +518,42 @@ export default function MapView({
     };
   }, [ready, layers.trains, layers.simulate]);
 
+  // Journey mode: light up the explored neighborhoods and show only the given restaurants, at any zoom.
+  const journeyKey = journey ? JSON.stringify(journey) : null;
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map || !journeyKey) return;
+    const { hoodIds = [], placeIds = null } = JSON.parse(journeyKey);
+    const explored = new Set(hoodIds);
+    // On a small map the credits start collapsed behind the (i) button, so they don't cover the map.
+    const collapseCredits = () => {
+      const el = containerRef.current?.querySelector('.maplibregl-ctrl-attrib');
+      el?.classList.remove('maplibregl-compact-show');
+      el?.removeAttribute('open');
+    };
+    collapseCredits();
+    const creditsTimer = setTimeout(collapseCredits, 600);
+    for (const f of dataRef.current.neighborhoods.features) {
+      const on = explored.has(f.properties.id);
+      map.setFeatureState({ source: 'neighborhoods', id: f.properties.id }, { lit: on, dim: !on });
+    }
+    const only = placeIds ? ['in', ['get', 'id'], ['literal', placeIds]] : ['==', ['get', 'collected'], 1];
+    for (const id of ['places', 'place-labels']) {
+      if (!map.getLayer(id)) continue;
+      map.setFilter(id, only);
+      if (id === 'places') map.setLayerZoomRange(id, 0, 24);
+    }
+    return () => clearTimeout(creditsTimer);
+  }, [ready, journeyKey]);
+
   // Fly to a search result
   useEffect(() => {
     const map = mapRef.current;
     if (!ready || !map || !focus) return;
     const wide = window.innerWidth > 800;
-    const padding = { top: 40, bottom: 40, left: wide ? 400 : 40, right: wide ? 380 : 40 };
+    const padding = latest.current.journey
+      ? 36
+      : { top: 40, bottom: 40, left: wide ? 400 : 40, right: wide ? 380 : 40 };
     if (focus.bounds) map.fitBounds(focus.bounds, { padding, maxZoom: 14.5, duration: 900 });
     else if (focus.center) map.flyTo({ center: focus.center, zoom: Math.max(map.getZoom(), 14.5), padding, duration: 900, essential: true });
   }, [ready, focus]);

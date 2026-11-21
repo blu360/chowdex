@@ -18,6 +18,8 @@ export default function PlaceCard({ placeId, signedIn, onClose, onDexChange, onS
   const [collected, setCollected] = useState(false);
   const [dish, setDish] = useState('');
   const [rating, setRating] = useState(0);
+  const [note, setNote] = useState('');
+  const [photo, setPhoto] = useState(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState(null);
 
@@ -27,6 +29,8 @@ export default function PlaceCard({ placeId, signedIn, onClose, onDexChange, onS
     setMessage(null);
     setDish('');
     setRating(0);
+    setNote('');
+    setPhoto(null);
     Promise.all([getPlace(placeId), getDex()])
       .then(([p, dex]) => {
         if (cancelled) return;
@@ -46,7 +50,7 @@ export default function PlaceCard({ placeId, signedIn, onClose, onDexChange, onS
     setMessage(null);
     try {
       const before = await getStamps();
-      const entry = await addToDex(placeId, { favoriteDish: dish || null, myRating: rating || null });
+      const entry = await addToDex(placeId, { favoriteDish: dish || null, myRating: rating || null, note: note || null, photo });
       const [after, stations] = await Promise.all([getStamps(), getStations()]);
       const fresh = Object.keys(after.by_station).filter((id) => !before.by_station[id]);
       const names = fresh.map((id) => stations.find((s) => s.id === id)?.name).filter(Boolean);
@@ -61,7 +65,7 @@ export default function PlaceCard({ placeId, signedIn, onClose, onDexChange, onS
           (entry.fed === false ? ' Your pets are full for today, so no XP this time.' : '') +
           (names.length ? ` New station stamps: ${names.join(', ')}` : ''),
       });
-      onDexChange();
+      onDexChange({ entry, stations: names });
     } catch (err) {
       setMessage({ kind: 'error', text: err.message });
     } finally {
@@ -142,6 +146,14 @@ export default function PlaceCard({ placeId, signedIn, onClose, onDexChange, onS
                   </button>
                 ))}
               </div>
+              <label>
+                Note
+                <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={280} rows={2} placeholder="Anything to remember?" />
+              </label>
+              <label className="file-row">
+                <span>Photo <span className="hint">+5 XP</span></span>
+                <input type="file" accept="image/*" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
+              </label>
               <button className="btn btn-primary" disabled={busy}>
                 {busy ? 'Adding…' : 'Add to my dex'}
               </button>
