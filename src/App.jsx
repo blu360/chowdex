@@ -24,6 +24,7 @@ import PetsPage from './features/pet/PetsPage.jsx';
 import PetProfile from './features/pet/PetProfile.jsx';
 import RewardToast from './components/RewardToast.jsx';
 import { Icon } from './components/ui.jsx';
+import SketchFilters from './components/SketchFilters.jsx';
 import TrainTransition, { TRAIN_ORDER, TRANSITION_SWAP_MS, TRANSITION_TOTAL_MS } from './components/TrainTransition.jsx';
 
 const STYLE_KEY = 'chowdex.mapStyle';
@@ -340,6 +341,7 @@ export default function App() {
         ))}
       </nav>
 
+      <SketchFilters />
       {transition && <TrainTransition key={transition.id} train={transition.train} />}
     </div>
   );

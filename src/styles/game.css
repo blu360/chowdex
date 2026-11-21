@@ -8,8 +8,8 @@
 
 /* ---------- Typography refresh ---------- */
 :root {
-  /* Headings and the logo: Fredoka, a rounded display font. Body text and labels stay in DM Sans. */
-  --font-display: 'Fredoka', 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Headings and the logo: Cabin Sketch, letters shaded in like pencil. Body text and labels stay in DM Sans. */
+  --font-display: 'Cabin Sketch', 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-head: var(--font-display);
   --font-body: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-ui: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -556,3 +556,42 @@ input, textarea, select { font-family: inherit; }
 /* ---------- Accent follow-ups ---------- */
 .star.on { color: var(--gold); }
 .stars-read { color: var(--gold); }
+
+/* ---------- Flip-book pets ---------- */
+/*
+  Pet drawings "boil": the picture flips between four slightly different wobbles (the filters in
+  SketchFilters.jsx) about seven times a second, like a hand-drawn animation. Tiny thumbnails and
+  locked silhouettes stay still, and so does everything for people who prefer reduced motion.
+*/
+.sketch-filters { position: absolute; width: 0; height: 0; overflow: hidden; }
+@keyframes boil {
+  0% { filter: url(#boil-0); }
+  25% { filter: url(#boil-1); }
+  50% { filter: url(#boil-2); }
+  75% { filter: url(#boil-3); }
+}
+.pet-art img:not(.locked) { animation: boil 0.56s step-end infinite; }
+.feed-pet img:not(.locked), .next-list .pet-art img { animation: none; }
+/* Hovering a card still wiggles its pet; keep the boil going underneath. */
+.pet-card:hover .pet-art img:not(.locked), .buddy:hover .pet-art img:not(.locked) { animation: wiggle 0.5s ease, boil 0.56s step-end infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .pet-art img:not(.locked) { animation: none; }
+}
+
+/* ---------- Cabin Sketch sizing ---------- */
+/* The pencil-shaded display font looks faint when small, so the smaller headings get a size up. */
+.brand-name { font-size: 29px; letter-spacing: 0; }
+.sec-head h2, .card-title { font-size: 22px; letter-spacing: 0; }
+.pet-name { font-size: 18.5px; letter-spacing: 0; }
+.buddy .pet-name { font-size: 27px; }
+.pet-card .pet-name { font-size: 17px; }
+.overview-name { font-size: 20px; }
+.page-head h1 { font-size: 32px; letter-spacing: 0; }
+.profile-hero h1 { font-size: 33px; letter-spacing: 0; }
+.dex-top h3 { font-size: 19px; letter-spacing: 0; }
+.line-card h2 { font-size: 22px; }
+.panel h2 { font-size: 26px; letter-spacing: 0; }
+.hero h1 { letter-spacing: 0; }
+@media (min-width: 801px) { .brand-name { font-size: 32px; } }
+@media (min-width: 560px) { .buddy .pet-name { font-size: 30px; } }
+@media (min-width: 980px) { .page-head h1 { font-size: 36px; } }
