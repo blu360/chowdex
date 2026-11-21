@@ -556,3 +556,24 @@ input, textarea, select { font-family: inherit; }
 /* ---------- Accent follow-ups ---------- */
 .star.on { color: var(--gold); }
 .stars-read { color: var(--gold); }
+
+/* ---------- Flip-book pets ---------- */
+/*
+  Pet drawings "boil": the picture flips between four slightly different wobbles (the filters in
+  SketchFilters.jsx) about seven times a second, like a hand-drawn animation. Tiny thumbnails and
+  locked silhouettes stay still, and so does everything for people who prefer reduced motion.
+*/
+.sketch-filters { position: absolute; width: 0; height: 0; overflow: hidden; }
+@keyframes boil {
+  0% { filter: url(#boil-0); }
+  25% { filter: url(#boil-1); }
+  50% { filter: url(#boil-2); }
+  75% { filter: url(#boil-3); }
+}
+.pet-art img:not(.locked) { animation: boil 0.56s step-end infinite; }
+.feed-pet img:not(.locked), .next-list .pet-art img { animation: none; }
+/* Hovering a card still wiggles its pet; keep the boil going underneath. */
+.pet-card:hover .pet-art img:not(.locked), .buddy:hover .pet-art img:not(.locked) { animation: wiggle 0.5s ease, boil 0.56s step-end infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .pet-art img:not(.locked) { animation: none; }
+}
