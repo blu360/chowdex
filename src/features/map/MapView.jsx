@@ -23,7 +23,7 @@ const INK = '#111111';
 const NAVY = '#14407A';
 const YELLOW = '#F7DD04';
 const TRAIN_POLL_MS = 8000;
-const TRAIN_ICON_MIN_ZOOM = 13.5; // trains are hidden below this zoom
+const TRAIN_ICON_MIN_ZOOM = 14.8; // trains are hidden below this zoom
 const DEFAULT_GLIDE_MS = 12000;
 const MIN_GLIDE_MS = 5000;
 const MAX_GLIDE_MS = 25000;
@@ -196,7 +196,7 @@ function installLayers(map, { data, dark, layers }) {
       'icon-pitch-alignment': 'map',
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
-      'icon-size': ['interpolate', ['linear'], ['zoom'], TRAIN_ICON_MIN_ZOOM, 0.5, 15, 0.9],
+      'icon-size': ['interpolate', ['linear'], ['zoom'], TRAIN_ICON_MIN_ZOOM, 0.7, 17, 1.2],
     },
   });
 
