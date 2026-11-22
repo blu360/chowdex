@@ -3,6 +3,7 @@ import {
   getCurrentUser,
   getPlace,
   getProfile,
+  getSchoolInfo,
   getStamps,
   signInWithGoogle,
   signOut,
@@ -24,7 +25,9 @@ import PetsPage from './features/pet/PetsPage.jsx';
 import PetProfile from './features/pet/PetProfile.jsx';
 import RewardToast from './components/RewardToast.jsx';
 import Onboarding from './features/onboarding/Onboarding.jsx';
-import { clearOnboarding, loadOnboarding } from './lib/onboarding.js';
+import SemesterRecap from './features/recap/SemesterRecap.jsx';
+import { SCHOOLS } from './lib/schools.js';
+import { clearOnboarding, loadOnboarding, saveOnboarding } from './lib/onboarding.js';
 import { Icon } from './components/ui.jsx';
 import SketchFilters from './components/SketchFilters.jsx';
 import TrainTransition, { TRAIN_ORDER, TRANSITION_SWAP_MS, TRANSITION_TOTAL_MS } from './components/TrainTransition.jsx';
@@ -84,6 +87,8 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [reward, setReward] = useState(null); // what the last logged meal earned
   const [onboarding, setOnboarding] = useState(false); // the first-run setup is open
+  const [schoolInfo, setSchoolInfo] = useState(null); // what they told us in onboarding (student, school)
+  const [recapOpen, setRecapOpen] = useState(false); // the semester recap is open
 
   const [transition, setTransition] = useState(null); // { id, train } while a train is crossing the screen
   const trainCount = useRef(0);
@@ -133,11 +138,12 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([getCurrentUser(), getProfile(), getStamps()]).then(([u, p, s]) => {
+    Promise.all([getCurrentUser(), getProfile(), getStamps(), getSchoolInfo().catch(() => null)]).then(([u, p, s, info]) => {
       if (cancelled) return;
       setUser(u);
       setProfile(p);
       setStampTotal(s.stamped_total);
+      setSchoolInfo(info);
     });
     return () => {
       cancelled = true;
@@ -210,9 +216,33 @@ export default function App() {
   // First time this person signs in on this browser: walk them through setup (see features/onboarding).
   const userId = user?.id ?? null;
   useEffect(() => {
-    if (userId && !loadOnboarding(userId)?.done) setOnboarding(true);
-    if (!userId) setOnboarding(false);
+    if (!userId) {
+      setOnboarding(false);
+      return undefined;
+    }
+    if (loadOnboarding(userId)?.done) return undefined;
+    // Not done on this browser: they may still have done it on another device, which the profile remembers.
+    let cancelled = false;
+    getSchoolInfo()
+      .catch(() => null)
+      .then((info) => {
+        if (cancelled) return;
+        if (info?.onboarded) saveOnboarding(userId, { done: true, student: info.is_student, schoolId: info.school_id });
+        else setOnboarding(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [userId]);
+
+  /** The user's school (from onboarding), with its location. Null if they have none. */
+  const school = SCHOOLS.find((x) => x.id === schoolInfo?.school_id) ?? null;
+  /** A box about a mile around campus, for the "Near campus" filter and jumps to the map. */
+  const campusBox = school
+    ? { south: school.lat - 0.01447, north: school.lat + 0.01447, west: school.lng - 0.01953, east: school.lng + 0.01953 }
+    : null;
+  const exploreCampus = () =>
+    school && exploreTo({ type: 'campus', center: [school.lng, school.lat] }); // zooms in far enough for the restaurant dots to show
   const onSignIn = act(signInWithGoogle);
   const onDemo = IS_MOCK ? act(loadDemoData) : undefined; // demo data only exists in mock mode
 
@@ -272,6 +302,11 @@ export default function App() {
                 <button className="btn btn-small btn-solid" onClick={onSignIn}>Sign in with Google</button>
               )}
               {user && (
+                <button className="btn btn-small" onClick={() => { setMenuOpen(false); setRecapOpen(true); }}>
+                  Semester recap
+                </button>
+              )}
+              {user && (
                 <button className="btn btn-small btn-quiet" onClick={() => { setMenuOpen(false); setOnboarding(true); }}>
                   Run setup again
                 </button>
@@ -302,6 +337,10 @@ export default function App() {
             onExplore={exploreTo}
             onSignIn={onSignIn}
             onDemo={onDemo}
+            school={school}
+            onSetup={() => setOnboarding(true)}
+            onRecap={() => setRecapOpen(true)}
+            onExploreCampus={exploreCampus}
           />
         )}
 
@@ -327,6 +366,7 @@ export default function App() {
               onStyleId={changeStyle}
               trainsInfo={trainsInfo}
               onPick={pick}
+              campus={school && campusBox ? { name: school.name, box: campusBox, center: [school.lng, school.lat] } : null}
             />
             <Legend />
             {selected?.type === 'place' && (
@@ -376,8 +416,9 @@ export default function App() {
           ))}
 
         {reward && <RewardToast reward={reward} onClose={() => setReward(null)} onOpenPet={openPet} />}
+        {recapOpen && user && <SemesterRecap user={user} school={school} onClose={() => setRecapOpen(false)} />}
         {onboarding && user && !transition && (
-          <Onboarding user={user} onClose={() => setOnboarding(false)} onDexChange={bump} onExplore={exploreTo} />
+          <Onboarding user={user} onClose={() => { setOnboarding(false); bump(); }} onDexChange={bump} onExplore={exploreTo} />
         )}
       </main>
 

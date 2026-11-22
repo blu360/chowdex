@@ -618,6 +618,61 @@ export function createSupabaseApi({ apiError, levelFromXp, tierFromPercent, dail
       must(await sb.auth.signOut());
     },
 
+    /* ---- Campus: school on the profile, community ratings, the leaderboard (migration 7) ---- */
+
+    async getSchoolInfo() {
+      if (!(await currentSession())) return null;
+      const sb = await client();
+      const row = must(await sb.from('profiles').select('is_student,school_id,onboarded_at').maybeSingle());
+      return { is_student: row?.is_student ?? null, school_id: row?.school_id ?? null, onboarded: Boolean(row?.onboarded_at) };
+    },
+
+    async saveSchoolInfo({ isStudent = null, schoolId = null } = {}) {
+      const session = await requireSession('Sign in to save your school');
+      const sb = await client();
+      must(
+        await sb
+          .from('profiles')
+          .update({ is_student: isStudent, school_id: schoolId, onboarded_at: new Date().toISOString() })
+          .eq('id', session.user.id),
+      );
+      return { is_student: isStudent, school_id: schoolId, onboarded: true };
+    },
+
+    // The three below call "security definer" SQL functions: they read every user's journal but only ever return
+    // counts and averages, never who rated what.
+    async getCommunityRating(placeId) {
+      const sb = await client();
+      const row = must(await sb.rpc('place_community_rating', { p_place: placeId }))?.[0];
+      return {
+        rating: row?.rating != null ? Number(row.rating) : null,
+        count: row?.rating_count ?? 0,
+        school: row?.school_id
+          ? { id: row.school_id, rating: row.school_rating != null ? Number(row.school_rating) : null, count: row.school_count ?? 0 }
+          : null,
+      };
+    },
+
+    async getCampusBoard({ since } = {}) {
+      const sb = await client();
+      const from = since ?? (() => {
+        const d = new Date();
+        d.setHours(0, 0, 0, 0);
+        d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+        return d.toISOString();
+      })();
+      const rows = must(await sb.rpc('campus_board', { p_since: from })) ?? [];
+      return rows
+        .map((r) => ({ school_id: r.school_id, explorers: r.explorers, meals: r.meals, places: r.places, neighborhoods: r.neighborhoods }))
+        .sort((a, b) => b.neighborhoods - a.neighborhoods || b.places - a.places || b.meals - a.meals);
+    },
+
+    async getCampusPopular(schoolId, { limit = 5 } = {}) {
+      const sb = await client();
+      const rows = must(await sb.rpc('campus_popular', { p_school: schoolId, p_limit: limit })) ?? [];
+      return rows.map((r) => ({ place_id: r.place_id, meals: r.meals, rating: r.rating != null ? Number(r.rating) : null }));
+    },
+
     // Demo data is a mock-only feature: meal times are set by the server, so a real account can't be backfilled.
     async loadDemoData() {
       throw apiError('INVALID', 'Demo data is only available in mock mode');

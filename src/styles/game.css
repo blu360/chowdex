@@ -332,13 +332,15 @@ input, textarea, select { font-family: inherit; }
   /* Pets and the activity feed stack on the left; the journey map sits beside them on the right. */
   .home {
     grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); align-items: start; gap: 18px;
-    grid-template-areas: 'overview overview' 'pets journey' 'spotlight journey' 'green journey' 'activity journey';
+    grid-template-areas: 'overview overview' 'pets journey' 'campus journey' 'spotlight journey' 'near journey' 'green journey' 'activity journey';
     /* The tall journey card spans several rows; the spare height goes to the last row so the left column stays tight. */
-    grid-template-rows: auto auto auto auto 1fr;
+    grid-template-rows: auto auto auto auto auto auto 1fr;
   }
   .home .span { grid-area: overview; }
   .home .area-pets { grid-area: pets; }
   .home .area-spotlight { grid-area: spotlight; }
+  .home .area-campus { grid-area: campus; }
+  .home .area-near { grid-area: near; }
   .home .area-green { grid-area: green; }
   .home .area-journey { grid-area: journey; }
   .home .area-activity { grid-area: activity; }
@@ -851,3 +853,41 @@ input, textarea, select { font-family: inherit; }
   .onboard-choices { grid-template-columns: 1fr 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { .onboard-backdrop, .onboard { animation: none; } }
+
+/* ---------- Campus, community ratings, near campus ---------- */
+.community-rating { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; font-size: 14px; }
+.school-rating { flex-basis: 100%; color: var(--muted); font-size: 13.5px; }
+.school-rating strong { color: var(--ink); }
+.recap-chip { cursor: pointer; border-color: var(--ink); background: var(--surface, #fff); color: var(--ink); font-weight: 600; }
+.recap-chip:hover { background: var(--accent-soft); }
+.campus-empty { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.campus-empty h2 { font: 700 22px/1.25 var(--font-head); }
+.campus-challenge { padding: 10px 12px; background: var(--accent-soft); border: 2px solid var(--ink); border-radius: 14px; }
+.campus-challenge p { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font: 400 14px/1.4 var(--font-ui); }
+.campus-challenge .badge-progress { color: inherit; }
+.challenge-done { display: inline-flex; align-items: center; gap: 3px; padding: 0 8px; background: var(--ink); color: var(--on-ink, #fff); border-radius: 999px; font: 600 11px/1.7 var(--font-ui); }
+.board { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.board li { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 10px; font: 500 14px var(--font-ui); }
+.board li b { font: 700 16px var(--font-head); text-align: center; }
+.board li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board li small { font: 400 12px var(--font-ui); color: var(--muted); white-space: nowrap; }
+.board li.me { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--ink); font-weight: 600; }
+.area-near .filter-row { margin-bottom: 10px; }
+
+/* ---------- Semester recap ---------- */
+.recap { max-width: 460px; }
+.recap-close { position: static; flex: none; }
+.recap-card { padding: 16px; background: var(--surface, #fff); border: 2.5px solid var(--ink); border-radius: 18px; box-shadow: 5px 5px 0 var(--accent); }
+.recap-kicker { font: 600 11.5px var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.recap-card h2 { font: 700 40px/1.05 var(--font-head); margin: 2px 0; }
+.recap-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 12px 0 4px; border-top: 2.5px solid var(--ink); border-bottom: 2.5px solid var(--ink); }
+.recap-stats div { padding: 8px 6px 8px 0; min-width: 0; }
+.recap-stats div + div { padding-left: 8px; border-left: 2.5px solid var(--ink); }
+.recap-stats dd { margin: 0; font: 700 30px/1 var(--font-head); }
+.recap-stats dt { font: 500 11.5px var(--font-ui); color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.recap-pets { display: flex; gap: 2px; flex-wrap: wrap; }
+.recap-pets .pet-art { width: 62px; height: 62px; }
+.recap-facts { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.recap-facts li { font: 500 14.5px/1.35 var(--font-ui); }
+.recap-facts b { display: block; font: 600 10.5px var(--font-ui); letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
+.recap .onboard-foot .btn { display: inline-flex; align-items: center; gap: 6px; }

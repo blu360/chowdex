@@ -155,6 +155,11 @@ See the JSDoc typedefs at the top of `src/lib/api.js` for `DexEntry`, `Profile`,
 | `getPetJournal(petId)` | `PetJournal` | the food-journal entries that fed this pet (the starter sees all), with place, dish, rating, photo, XP, and stats |
 | `getNeighborhoodProgress()` | `NeighborhoodProgress[]` | the 24 areas with `entries`, `visited`, and `pet_id`; the dashboard's "7 of 24" is the count of `visited` |
 | `getProfile()` | `Profile` or `null` | `null` when signed out. `pet_name` is the active pet's display name |
+| `getSchoolInfo()` | `SchoolInfo` or `null` | `is_student`, `school_id` (an id from `src/lib/schools.js`), `onboarded`. `null` when signed out |
+| `saveSchoolInfo({isStudent, schoolId})` | `SchoolInfo` | saves the onboarding answers and marks the user onboarded. Throws `NOT_SIGNED_IN` or `INVALID` |
+| `getCommunityRating(placeId)` | `CommunityRating` | Chowdex users' own ratings for a place: `rating`, `count`, and `school` (the same from the caller's school). Separate from Google's rating |
+| `getCampusBoard({since})` | `CampusRow[]` | one row per school with activity since `since` (default: this week), most neighborhoods first |
+| `getCampusPopular(schoolId, {limit})` | `{place_id, meals, rating}[]` | the places a school's students log most |
 | `getCurrentUser()` | `User` or `null` | |
 | `signInWithGoogle()`, `signOut()` | | |
 

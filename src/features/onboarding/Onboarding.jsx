@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { addToDex, getDex, getNeighborhoodProgress, getNeighborhoods, getPlaces, getStamps } from '../../lib/api.js';
+import { addToDex, getDex, getNeighborhoodProgress, getNeighborhoods, getPlaces, getStamps, saveSchoolInfo } from '../../lib/api.js';
 import { Icon, PetArt } from '../../components/ui.jsx';
 import { boundsOfFeature } from '../../lib/game.js';
 import { locationCounts } from '../../lib/chains.js';
 import { distanceM, formatDistance, saveOnboarding } from '../../lib/onboarding.js';
 import { cuisineLabel } from '../../lib/placeLabels.js';
 import { localScore } from '../../lib/spotlight.js';
-import { SCHOOLS } from './schools.js';
+import { SCHOOLS } from '../../lib/schools.js';
 
 const STEPS = 4;
 const NEARBY_SHOWN = 8; // places offered in "have you been here?"
@@ -105,7 +105,10 @@ export default function Onboarding({ user, onClose, onDexChange, onExplore }) {
 
   const finish = (extra = {}) => {
     saveOnboarding(user.id, { done: true, student, schoolId: school?.id ?? null, hoodId, ...extra });
-    onClose();
+    // The profile remembers the school too, so the campus features work and other devices skip this.
+    saveSchoolInfo({ isStudent: student, schoolId: school?.id ?? null })
+      .catch(() => {})
+      .finally(onClose);
   };
 
   const toggleBeen = (id) =>

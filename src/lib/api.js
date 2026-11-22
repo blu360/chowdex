@@ -15,6 +15,8 @@ import neighborhoods from './mock/neighborhoods.json';
 import { createPetEngine, DAILY_FEED_LIMIT, PET_LEVEL_XP, PET_MAX_LEVEL, petLevelFromXp, localParts } from './mock/petEngine.js';
 import { createSupabaseApi } from './supabaseApi.js';
 import { isBigChain } from './chains.js';
+import { SCHOOLS } from './schools.js';
+import { createMockCommunity } from './mock/community.js';
 import { planDirections } from './directions.js';
 import { arrivalsQuery, parseArrivals } from './mbtaLive.js';
 import { addTripFromRoute, listTrips, removeTrip, tallyTrips } from './trips.js';
@@ -320,6 +322,33 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
  */
 
 /**
+ * What the user told us in onboarding. Null when signed out.
+ * @typedef {Object} SchoolInfo
+ * @property {boolean|null} is_student
+ * @property {string|null}  school_id    an id from src/lib/schools.js
+ * @property {boolean}      onboarded    they have been through (or skipped) onboarding
+ */
+
+/**
+ * Ratings from Chowdex users (the `my_rating` on their journal entries), separate from Google's.
+ * @typedef {Object} CommunityRating
+ * @property {number|null} rating    average of every Chowdex rating for the place, 1 decimal; null if none
+ * @property {number}      count
+ * @property {{id: string, rating: number|null, count: number}|null} school   the same, from students at the
+ *           signed-in user's school only; null when they have no school
+ */
+
+/**
+ * One school's row on the campus leaderboard.
+ * @typedef {Object} CampusRow
+ * @property {string} school_id
+ * @property {number} explorers       students who logged a meal in the period
+ * @property {number} meals
+ * @property {number} places          different places
+ * @property {number} neighborhoods   different neighborhoods (what the board is ranked by)
+ */
+
+/**
  * @typedef {Object} StampSummary
  * @property {Object<string, string[]>} by_station   station id -> ids of the dex places that stamped it;
  *                                                    only stamped stations appear
@@ -361,6 +390,14 @@ export function xpForLevel(level) {
  * Errors. Real and mock implementations throw errors with these codes.
  * ------------------------------------------------------------------------- */
 
+/** ISO time of the most recent Monday at midnight, local time: the start of "this week" on the campus board. */
+export function startOfWeek(now = new Date()) {
+  const d = new Date(now);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return d.toISOString();
+}
+
 function apiError(code, message) {
   const err = new Error(message);
   err.code = code;
@@ -377,6 +414,7 @@ const SIGNED_IN_KEY = 'bostonhacks.mock.signedIn';
 
 const MOCK_USER = { id: 'mock-user', email: 'student@example.com', display_name: 'Mock Student' };
 const ACTIVE_PET_KEY = 'bostonhacks.mock.activePet';
+const SCHOOL_KEY = 'bostonhacks.mock.school';
 const PET_NICKNAMES_KEY = 'bostonhacks.mock.petNicknames';
 
 /* Which neighborhood is a point in? (The real backend does this once with a PostGIS join.) */
@@ -620,7 +658,68 @@ function activePetId(dex) {
   return dex.some((e) => neighborhoodOfEntry(e) === pick.neighborhood_id) ? pick.id : starterPet.id;
 }
 
+/** Mock only: made-up "other students" so the campus features have something to show. */
+const mockCommunity = createMockCommunity({ places: mockPlaces, schools: SCHOOLS });
+const mockSchool = () => (isSignedIn() ? readStore(SCHOOL_KEY, null) : null);
+
 const mockApi = {
+  /** @returns {Promise<SchoolInfo|null>} null when signed out */
+  async getSchoolInfo() {
+    await delay(50);
+    if (!isSignedIn()) return null;
+    return mockSchool() ?? { is_student: null, school_id: null, onboarded: false };
+  },
+
+  /**
+   * Save the onboarding answers. `schoolId` must be an id from src/lib/schools.js, or null.
+   * @param {{isStudent: boolean|null, schoolId: string|null}} answers
+   * @returns {Promise<SchoolInfo>}
+   * @throws NOT_SIGNED_IN or INVALID
+   */
+  async saveSchoolInfo({ isStudent = null, schoolId = null } = {}) {
+    await delay(50);
+    if (!isSignedIn()) throw apiError('NOT_SIGNED_IN', 'Sign in to save your school');
+    if (schoolId != null && !SCHOOLS.some((x) => x.id === schoolId)) throw apiError('INVALID', `Unknown school: ${schoolId}`);
+    const info = { is_student: isStudent, school_id: schoolId, onboarded: true };
+    writeStore(SCHOOL_KEY, info);
+    return info;
+  },
+
+  /**
+   * What Chowdex users rated a place, overall and at the signed-in user's school.
+   * @param {string} placeId
+   * @returns {Promise<CommunityRating>}
+   */
+  async getCommunityRating(placeId) {
+    await delay(60);
+    const mine = isSignedIn() ? readStore(DEX_KEY, []).find((e) => e.place_id === placeId) : null;
+    return mockCommunity.communityRating(placeId, { schoolId: mockSchool()?.school_id ?? null, myRating: mine?.my_rating ?? null });
+  },
+
+  /**
+   * The campus leaderboard: every school with activity since `since`, most neighborhoods first.
+   * @param {{since?: string}} [options]  ISO time; defaults to the start of this week (Monday, Boston time is close enough)
+   * @returns {Promise<CampusRow[]>}
+   */
+  async getCampusBoard({ since } = {}) {
+    await delay();
+    const from = since ?? startOfWeek();
+    const myEntries = isSignedIn() ? readStore(DEX_KEY, []).filter((e) => e.visited_at >= from) : [];
+    return mockCommunity.board({ schoolId: mockSchool()?.school_id ?? null, myEntries });
+  },
+
+  /**
+   * The places a school's students log most.
+   * @param {string} schoolId
+   * @param {{limit?: number}} [options]
+   * @returns {Promise<{place_id: string, meals: number, rating: number|null}[]>}
+   */
+  async getCampusPopular(schoolId, { limit = 5 } = {}) {
+    await delay();
+    const mine = isSignedIn() && mockSchool()?.school_id === schoolId ? readStore(DEX_KEY, []) : [];
+    return mockCommunity.popular(schoolId, limit, mine);
+  },
+
   /** @param {PlaceFilters} [filters] @returns {Promise<Place[]>} */
   async getPlaces(filters = {}) {
     await delay();
@@ -1095,6 +1194,7 @@ const mockApi = {
     writeStore(DEX_KEY, []);
     writeStore(ACTIVE_PET_KEY, null);
     writeStore(PET_NICKNAMES_KEY, {});
+    writeStore(SCHOOL_KEY, null);
     writeStore(SIGNED_IN_KEY, false);
   },
 };
@@ -1230,6 +1330,11 @@ export const {
   getDex,
   addToDex,
   getProfile,
+  getSchoolInfo,
+  saveSchoolInfo,
+  getCommunityRating,
+  getCampusBoard,
+  getCampusPopular,
   getCurrentUser,
   signInWithGoogle,
   signOut,
