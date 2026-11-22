@@ -906,3 +906,8 @@ input, textarea, select { font-family: inherit; }
 .dir-warn { margin: 0; color: var(--bad, #ce2634); }
 .dir-ask, .dir-warn { text-transform: none; letter-spacing: 0; }
 .dir-warn { font-weight: 500; }
+
+.open-now { color: var(--good, #1f8a4c); }
+.closed-now { color: var(--bad, #ce2634); }
+.hours-list { list-style: none; margin: 4px 0 0; padding: 0; font-size: 13px; }
+.hours-list li span { display: inline-block; min-width: 64px; font-weight: 600; }

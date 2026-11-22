@@ -2,7 +2,7 @@
  * The data layer. UI code imports ONLY from this file and never talks to
  * Supabase directly. Shapes are documented in docs/schema.md.
  *
- * VITE_USE_MOCK=true  (default) -> in-memory mock data + localStorage, no backend needed
+ * VITE_USE_MOCK=true  (default in dev; production builds need it set explicitly) -> in-memory mock data + localStorage
  * VITE_USE_MOCK=false           -> real Supabase backend (src/lib/supabaseApi.js); needs
  *                                  VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
  *
@@ -23,7 +23,9 @@ import { addTripFromRoute, listTrips, removeTrip, tallyTrips } from './trips.js'
 
 export { DAILY_FEED_LIMIT, PET_LEVEL_XP, PET_MAX_LEVEL, petLevelFromXp };
 
-const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
+// Mock data is a development convenience. A production build uses it only if VITE_USE_MOCK=true is set on purpose, so a
+// deploy that is missing its environment variables can never quietly serve the fake "Mock Student" to real users.
+const USE_MOCK = import.meta.env.PROD ? import.meta.env.VITE_USE_MOCK === 'true' : import.meta.env.VITE_USE_MOCK !== 'false';
 
 /* ---------------------------------------------------------------------------
  * Shapes

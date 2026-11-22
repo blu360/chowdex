@@ -3,12 +3,14 @@ import { getPlaces } from '../../lib/api.js';
 import { Icon } from '../../components/ui.jsx';
 import { distanceM, formatDistance } from '../../lib/onboarding.js';
 import { cuisineLabel } from '../../lib/placeLabels.js';
+import { openStatus } from '../../lib/hours.js';
 
 const RADIUS_M = 1609.34; // a mile from campus
 const SHOWN = 4;
 
 const MODES = [
   { id: 'cheap', label: 'Cheap eats', empty: 'No $ places listed within a mile yet.', pick: (p) => p.price_level === 1 },
+  { id: 'open', label: 'Open now', empty: 'Nothing with listed hours is open right now within a mile.', pick: (p) => openStatus(p.opening_hours)?.open === true },
   { id: 'late', label: 'Open late', empty: 'Nothing open past 1 am within a mile yet.', pick: (p) => p.open_late },
 ];
 

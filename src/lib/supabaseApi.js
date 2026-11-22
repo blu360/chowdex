@@ -10,6 +10,7 @@
 import { PET_LEVEL_XP, PET_MAX_LEVEL, petLevelFromXp } from './mock/petEngine.js';
 import { arrivalsQuery, parseArrivals } from './mbtaLive.js';
 import { isBigChain } from './chains.js';
+import { estimatePriceLevel } from './priceEstimate.js';
 
 const BUCKET = 'dex-photos';
 const PHOTO_URL_SECONDS = 3600;
@@ -146,7 +147,7 @@ export function createSupabaseApi({ apiError, levelFromXp, tierFromPercent, dail
         lat: r.lat,
         lng: r.lng,
         cuisine: r.cuisine,
-        price_level: r.price_level,
+        price_level: r.price_level ?? estimatePriceLevel(r.cuisine, r.name), // a guess from the kind of place when there is no real level
         opening_hours: r.opening_hours,
         open_late: r.open_late,
         website: r.website,
@@ -546,7 +547,7 @@ export function createSupabaseApi({ apiError, levelFromXp, tierFromPercent, dail
         note: r.note ?? null,
         photo_url: r.photo_path ? urls[r.photo_path] ?? null : null,
         visited_at: r.visited_at,
-        place: { id: r.place_id, name: r.place_name, cuisine: r.cuisine, price_level: r.price_level, neighborhood: hoodRef(r.neighborhood_id) },
+        place: { id: r.place_id, name: r.place_name, cuisine: r.cuisine, price_level: r.price_level ?? estimatePriceLevel(r.cuisine, r.place_name), neighborhood: hoodRef(r.neighborhood_id) },
         fed: r.fed,
         xp_gained: r.xp_gained,
       }));

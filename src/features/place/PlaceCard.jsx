@@ -5,6 +5,7 @@ import { shrinkPhoto } from '../../lib/image.js';
 import CommunityRating from './CommunityRating.jsx';
 import DirectionsPanel from './DirectionsPanel.jsx';
 import { placeBlurb } from '../../lib/placeLabels.js';
+import { openStatus, weeklyLines } from '../../lib/hours.js';
 
 export function LineChips({ lines }) {
   return (
@@ -13,6 +14,24 @@ export function LineChips({ lines }) {
         <span key={l} className="chip" style={{ background: LINE_COLORS[l] }}>{l}</span>
       ))}
     </span>
+  );
+}
+
+/** Open/closed right now, with the week's hours underneath. Hours we cannot read are shown as listed, never guessed. */
+function Hours({ text }) {
+  const status = openStatus(text);
+  const lines = weeklyLines(text);
+  if (!text) return 'Not listed';
+  if (!status || !lines) return text;
+  return (
+    <>
+      <strong className={status.open ? 'open-now' : 'closed-now'}>{status.text}</strong>
+      <ul className="hours-list">
+        {lines.map((l) => (
+          <li key={l.days}><span>{l.days}</span> {l.hours}</li>
+        ))}
+      </ul>
+    </>
   );
 }
 
@@ -133,7 +152,7 @@ export default function PlaceCard({ placeId, signedIn, onClose, onDexChange, onS
 
           <dl className="facts">
             <dt>Hours</dt>
-            <dd>{place.opening_hours ?? 'Not listed'}</dd>
+            <dd><Hours text={place.opening_hours} /></dd>
             <dt>Nearest T</dt>
             <dd>
               {place.nearest_stop.name} <LineChips lines={place.nearest_stop.lines} />
