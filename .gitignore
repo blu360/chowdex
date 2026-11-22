@@ -10,3 +10,6 @@ supabase/.temp/
 # Cloudflare local secrets (wrangler dev)
 .dev.vars
 .wrangler/
+
+# Local notes (kept out of the repo)
+docs/
