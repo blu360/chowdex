@@ -1,7 +1,9 @@
 -- Chowdex: the campus layer. School on the profile (from onboarding), and three functions that read across
 -- every user's journal for community ratings, the campus leaderboard, and what is popular at a school.
 --
--- NOT YET RUN against a real database: review and test before applying.
+-- APPLIED to the live database on 2026-11-21, after a rolled-back test with fake users that checked the anonymous
+-- and signed-in roles: outsiders only get aggregate counts, signed-in users can only set their own school, and
+-- nothing else on profiles became writable.
 -- Privacy: the functions are "security definer" so they can see all journals, but they only return counts and
 -- averages. A school with one or two students would still let someone guess who rated a place, so consider
 -- hiding a school's numbers until it has a few explorers (for example `having count(distinct e.user_id) >= 3`).
