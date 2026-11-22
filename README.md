@@ -37,3 +37,7 @@ To use the real backend, set `VITE_USE_MOCK=false` and fill in the Supabase valu
 ## Data credits
 
 Places and hours from OpenStreetMap contributors. Transit data from the MBTA. Photos and ratings from Google Maps.
+
+## License
+
+[MIT](LICENSE)
