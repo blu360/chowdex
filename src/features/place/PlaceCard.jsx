@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { getPlace, getPlacePhoto, getDex, addToDex, getFeedingStatus, getStamps, getStations } from '../../lib/api.js';
 import { LINE_COLORS } from '../../lib/lines.js';
 import { shrinkPhoto } from '../../lib/image.js';
+import CommunityRating from './CommunityRating.jsx';
 import DirectionsPanel from './DirectionsPanel.jsx';
 import { placeBlurb } from '../../lib/placeLabels.js';
 
@@ -124,9 +125,11 @@ export default function PlaceCard({ placeId, signedIn, onClose, onDexChange, onS
                 </span>
               </>
             ) : (
-              <span className="muted">No ratings yet</span>
+              <span className="muted">No Google rating yet</span>
             )}
           </div>
+          {/* Ratings from Chowdex users, overall and at your school. `collected` changes when you log it, which refreshes this. */}
+          <CommunityRating placeId={placeId} version={collected ? 1 : 0} />
 
           <dl className="facts">
             <dt>Hours</dt>

@@ -17,6 +17,9 @@ import { boundsOfFeature, buildActivity, petProgress, timeAgo, trainerProgress }
 import JourneyMap from '../map/JourneyMap.jsx';
 import GreenTally from './GreenTally.jsx';
 import Spotlight from './Spotlight.jsx';
+import CampusCard from './CampusCard.jsx';
+import NearCampus from './NearCampus.jsx';
+import { semesterOf } from '../../lib/semester.js';
 import PetCard, { homeOf } from '../pet/PetCard.jsx';
 import { STARTER_TINT, tintsFor } from '../pet/PetsPage.jsx';
 import { loreFor } from '../pet/petLore.js';
@@ -26,7 +29,7 @@ const FEED_PREVIEW = 6;
 const KIND_ICON = { meal: 'meal', stamp: 'stamps', level: 'bolt', badge: 'medal' };
 
 /** The hub: your pets first, then how far you have explored and what happened lately. */
-export default function HomePage({ version, user, profile, onOpenPet, onGo, onExplore, onSignIn, onDemo }) {
+export default function HomePage({ version, user, profile, onOpenPet, onGo, onExplore, onSignIn, onDemo, school = null, onSetup, onRecap, onExploreCampus }) {
   const [data, setData] = useState(null);
   const [allFeed, setAllFeed] = useState(false);
 
@@ -125,6 +128,11 @@ export default function HomePage({ version, user, profile, onOpenPet, onGo, onEx
                   <Icon name="meal" size={14} />
                   {feeding.full ? 'Pets are full today' : `${feeding.remaining} ${feeding.remaining === 1 ? 'feeding' : 'feedings'} left today`}
                 </span>
+                {onRecap && (
+                  <button className="stat-chip recap-chip" onClick={onRecap}>
+                    <Icon name="star" size={14} />{semesterOf().label} recap
+                  </button>
+                )}
               </div>
             </>
           ) : (
@@ -179,7 +187,11 @@ export default function HomePage({ version, user, profile, onOpenPet, onGo, onEx
         </section>
 
         {/* ---------- Green trips (only the trips the rider chose to log) ---------- */}
+        <CampusCard version={version} school={school} signedIn={signedIn} onSetup={onSetup} onExplore={onExplore} />
+
         <Spotlight version={version} onExplore={onExplore} />
+
+        <NearCampus school={school} onExplore={onExplore} onExploreCampus={onExploreCampus} />
 
         <GreenTally version={version} onGo={onGo} />
 

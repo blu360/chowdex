@@ -579,6 +579,66 @@ pet('starter', 'Starter (any area)', '#1f3b73', 'Boston Terrier', () => {
   blush(138, 200); blush(262, 200);
 });
 
+// ---------------------------------------------------------------- habit accessories
+// Extra drawing a pet picks up from how its owner eats (see src/lib/accessories.js). Each one is drawn
+// for one specific pet, in that pet's coordinates, and saved as a see-through overlay the same size as
+// the pet, so the app can lay it over the pet's picture. Only a few exist so far: add more the same way.
+const ACCESSORIES = [];
+const accessory = (petId, accId, label, draw) => ACCESSORIES.push({ petId, accId, label, draw });
+
+/** A to-go coffee cup with a little steam. (x, y) is the top-left corner of the lid. */
+function coffeeCup(x, y) {
+  L(`M${x + 12} ${y - 8} Q${x + 5} ${y - 18} ${x + 13} ${y - 28} M${x + 27} ${y - 8} Q${x + 20} ${y - 18} ${x + 28} ${y - 28}`, { sw: 4 });
+  P(`M${x} ${y + 10} L${x + 40} ${y + 10} L${x + 34} ${y + 58} L${x + 6} ${y + 58} Z`);
+  P(`M${x + 3} ${y + 25} L${x + 37} ${y + 25} L${x + 35} ${y + 42} L${x + 5} ${y + 42} Z`, '#e8a23c', { sw: 5 });
+  P(`M${x - 4} ${y} L${x + 44} ${y} L${x + 42} ${y + 11} L${x - 2} ${y + 11} Z`, '#7a5233', { sw: 6 });
+}
+const CAP = '#7d8fe0'; // nightcap blue
+
+// Boston Terrier: a striped nightcap flopping over one ear (late-night meals)
+accessory('starter', 'nightcap', 'Nightcap', () => {
+  P('M146 136 Q156 82 204 62 Q262 50 300 108 Q270 90 242 104 Q258 120 256 138 Q200 118 146 136 Z', CAP);
+  L('M172 96 Q200 106 232 92', { sw: 5 }); L('M222 68 Q238 82 262 76', { sw: 5 });
+  T('M146 136 Q200 116 256 138', 'w', 11);
+  C(303, 116, 14);
+});
+// Boston Terrier: a coffee held in one paw (cafe visits)
+accessory('starter', 'coffee', 'Coffee cup', () => {
+  coffeeCup(238, 272);
+  E(240, 318, 13, 10);
+});
+
+// Swan: a nightcap trailing behind its head
+accessory('back-bay', 'nightcap', 'Nightcap', () => {
+  P('M128 124 Q132 82 166 70 Q214 62 238 112 Q214 96 192 106 Q198 118 194 130 Q160 108 128 124 Z', CAP);
+  L('M150 96 Q168 104 190 94', { sw: 5 }); L('M186 74 Q198 86 216 82', { sw: 5 });
+  T('M128 124 Q160 106 194 130', 'w', 9);
+  C(241, 120, 12);
+});
+// Swan: a coffee riding on its back
+accessory('back-bay', 'coffee', 'Coffee cup', () => {
+  coffeeCup(246, 198);
+});
+
+// Owl: a coffee tucked under one wing
+accessory('cambridge', 'coffee', 'Coffee cup', () => {
+  coffeeCup(286, 262);
+  E(296, 300, 12, 16, '#9c6b45', { rot: -20 });
+});
+
+// Boston Terrier: a puffy chef's hat (trying lots of different kinds of food)
+accessory('starter', 'chef', "Chef's hat", () => {
+  P('M152 108 Q122 86 146 62 Q152 32 190 44 Q214 22 240 46 Q278 50 268 86 Q264 100 252 110 Q200 92 152 108 Z');
+  L('M184 50 Q190 70 186 90', { sw: 4 }); L('M222 50 Q218 70 224 92', { sw: 4 });
+  P('M152 106 Q200 90 252 108 L254 136 Q200 116 150 134 Z');
+});
+// Swan: a small chef's hat
+accessory('back-bay', 'chef', "Chef's hat", () => {
+  P('M132 100 Q110 84 128 64 Q134 42 160 52 Q178 36 196 54 Q222 60 212 86 Q208 98 196 104 Q162 90 132 100 Z');
+  L('M156 58 Q160 72 158 86', { sw: 4 }); L('M182 60 Q180 74 184 90', { sw: 4 });
+  P('M132 98 Q162 86 196 102 L196 128 Q160 108 130 122 Z');
+});
+
 // ---------------------------------------------------------------- output
 const grid = document.getElementById('grid');
 const manifest = [];
@@ -594,6 +654,23 @@ PETS.forEach((p, i) => {
   card.innerHTML = svg + `<b>${p.animal}</b>${p.area}`;
   grid.appendChild(card);
   manifest.push({ areaId: p.id, area: p.area, areaColor: p.areaColor, animal: p.animal, png: `/pets/png/${p.id}.png`, svg: `/pets/svg/${p.id}.svg`, starter: p.id === 'starter' });
+  p.svg = svg;
+});
+
+// Accessory overlays. Each uses its pet's wobble seed, so it bends the same way the pet does.
+// They are saved to public/pets/accessories/<pet>-<accessory>.png by build.sh, and previewed here on the pet.
+ACCESSORIES.forEach((a) => {
+  const index = PETS.findIndex((p) => p.id === a.petId);
+  cur = [];
+  a.draw();
+  const svg = render(`acc-${a.petId}-${a.accId}`, cur, index * 11 + 3);
+  const holder = document.createElement('script');
+  holder.type = 'text/plain'; holder.id = `acc-${a.petId}-${a.accId}`; holder.textContent = svg;
+  document.body.appendChild(holder);
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `<div style="position:relative;width:210px;height:210px;margin:auto">${PETS[index].svg}<div style="position:absolute;inset:0">${svg}</div></div><b>${PETS[index].animal} + ${a.label}</b>habit accessory`;
+  grid.appendChild(card);
 });
 const m = document.createElement('script');
 m.type = 'application/json'; m.id = 'manifest'; m.textContent = JSON.stringify(manifest, null, 2);

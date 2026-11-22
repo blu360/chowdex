@@ -38,7 +38,7 @@ function LayersIcon() {
   );
 }
 
-export default function SearchPanel({ filters, onFilters, layers, onLayers, styleId, onStyleId, trainsInfo, onPick }) {
+export default function SearchPanel({ filters, onFilters, layers, onLayers, styleId, onStyleId, trainsInfo, onPick, campus = null }) {
   const [query, setQuery] = useState('');
   const [focused, setFocused] = useState(false);
   const [layersOpen, setLayersOpen] = useState(false);
@@ -88,7 +88,17 @@ export default function SearchPanel({ filters, onFilters, layers, onLayers, styl
     }
   };
 
-  const activeCount = Number(Boolean(filters.openLate)) + Number(Boolean(filters.maxPrice)) + Number(Boolean(filters.line));
+  const activeCount =
+    Number(Boolean(filters.openLate)) + Number(Boolean(filters.maxPrice)) + Number(Boolean(filters.line)) + Number(Boolean(filters.bounds));
+  /** "Near campus": only places within about a mile of the user's school, and fly the map there. */
+  const toggleCampus = () => {
+    if (filters.bounds) {
+      onFilters({ ...filters, bounds: undefined });
+      return;
+    }
+    onFilters({ ...filters, bounds: campus.box });
+    onPick({ type: 'campus', center: campus.center }); // close enough that the restaurant dots are visible
+  };
   const toggle = (key, value) => onFilters({ ...filters, [key]: filters[key] === value ? undefined : value });
 
   const trainsText = !trainsInfo
@@ -179,6 +189,11 @@ export default function SearchPanel({ filters, onFilters, layers, onLayers, styl
         <button className={filters.maxPrice ? 'chip-btn on' : 'chip-btn'} onClick={() => toggle('maxPrice', 1)}>
           $ Cheap eats
         </button>
+        {campus && (
+          <button className={filters.bounds ? 'chip-btn on' : 'chip-btn'} onClick={toggleCampus} title={`Within a mile of ${campus.name}`}>
+            Near campus
+          </button>
+        )}
         {activeCount > 0 && (
           <button className="chip-clear" onClick={() => onFilters({})}>Clear</button>
         )}

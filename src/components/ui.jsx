@@ -1,5 +1,6 @@
 /** Small shared pieces: icons, XP bars, pet art, level pills. */
 import { PET_LEVEL_XP } from '../lib/api.js';
+import { usePetAccessories } from '../lib/accessories.js';
 
 const ICONS = {
   home: <path d="M3 11.5 12 4l9 7.5M5.5 10v9.5h13V10M10 19.5v-5h4v5" />,
@@ -110,11 +111,18 @@ export function LevelPill({ level, max }) {
   return <span className="lv-pill">{max != null && level >= max ? 'Lv MAX' : `Lv ${level}`}</span>;
 }
 
-/** The pet's drawing on a soft blob of its neighborhood color. Locked pets show as a silhouette. */
+/**
+ * The pet's drawing on a soft blob of its neighborhood color. Locked pets show as a silhouette.
+ * Anything the pet has earned from your eating habits (lib/accessories.js) is drawn on top of it.
+ */
 export function PetArt({ pet, tint, locked = false, className = '' }) {
+  const worn = usePetAccessories(pet.id);
   return (
     <span className={`pet-art ${className}`} style={tint ? { '--tint': tint } : undefined}>
       <img src={pet.image} alt="" loading="lazy" className={locked ? 'locked' : undefined} draggable="false" />
+      {!locked && worn.filter((a) => a.worn).map((a) => (
+        <img key={a.id} src={a.image} alt="" className="pet-acc" draggable="false" />
+      ))}
     </span>
   );
 }
