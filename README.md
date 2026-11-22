@@ -32,10 +32,6 @@ Open http://localhost:5173. With `VITE_USE_MOCK=true` in `.env`, the app runs on
 
 To use the real backend, set `VITE_USE_MOCK=false` and fill in the Supabase values. Apply `supabase/migrations/` in order, then run `npm run seed`.
 
-## Keys
-
-Never commit `.env`. Server-side keys (`MBTA_API_KEY`, `GOOGLE_PLACES_KEY`) are never sent to the browser. Restrict the MapTiler key to your domain.
-
 ## Data credits
 
 Places and hours from OpenStreetMap contributors. Transit data from the MBTA. Photos and ratings from Google Maps.
