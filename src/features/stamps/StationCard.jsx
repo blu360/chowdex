@@ -61,7 +61,7 @@ export default function StationCard({ stationId, onClose, onSelectPlace }) {
           {arrivals === null ? (
             <p className="muted">Loading…</p>
           ) : arrivals.length === 0 ? (
-            <p className="muted">No arrival data.</p>
+            <p className="muted">No trains are predicted right now. Service may be off or the live feed is unavailable.</p>
           ) : (
             <ul className="arrivals">
               {arrivals.map((a) => (
@@ -72,7 +72,7 @@ export default function StationCard({ stationId, onClose, onSelectPlace }) {
               ))}
             </ul>
           )}
-          <p className="muted small">Arrival times are simulated in mock mode.</p>
+          {arrivals?.length > 0 && <p className="muted small">Live predictions from the MBTA.</p>}
         </>
       )}
     </aside>
