@@ -899,3 +899,10 @@ input, textarea, select { font-family: inherit; }
 .recap-facts li { font: 500 14.5px/1.35 var(--font-ui); }
 .recap-facts b { display: block; font: 600 10.5px var(--font-ui); letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
 .recap .onboard-foot .btn { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Directions: choosing where to start */
+.dir-ask { margin: 0; font: 600 15px var(--font-ui); }
+.dir-locate { width: 100%; }
+.dir-warn { margin: 0; color: var(--bad, #ce2634); }
+.dir-ask, .dir-warn { text-transform: none; letter-spacing: 0; }
+.dir-warn { font-weight: 500; }

@@ -22,6 +22,7 @@ function loadStation() {
 const fmtClock = (iso) =>
   new Date(iso).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' });
 
+const LOCATE_GIVE_UP_MS = 15000; // some browsers never answer if the location prompt is ignored or never shows, so stop waiting after this
 const REFRESH_MS = 30000; // live times and the ETA are re-checked this often while the panel is open
 
 const metersBetween = (a, b) => Math.hypot((a.lng - b.lng) * 82400, (a.lat - b.lat) * 111200);
@@ -43,17 +44,19 @@ function Step({ color, time, live, children }) {
 }
 
 /**
- * Directions to a restaurant by T and on foot, starting from where the rider is. The position is read in the
- * browser when the panel opens, is never saved, and is blurred before it reaches the walking router. If location is
- * off (or the rider is not near Boston) they can pick a station to start from instead.
+ * Directions to a restaurant by T and on foot, starting from where the rider is. The position is only asked for when
+ * the rider taps "Use my current location" (phone browsers often will not show the prompt otherwise), is never saved,
+ * and is blurred before it reaches the walking router. They can always pick a station to start from instead, and the
+ * panel never gets stuck waiting: no answer within a few seconds, or any error, falls back to the station picker.
  * "I took this trip" adds it to their green-trips log, which is entirely their choice.
  */
 export default function DirectionsPanel({ placeId, onRoute, onLogged }) {
   const [stations, setStations] = useState([]);
   const [fromId, setFromId] = useState(loadStation);
   const [point, setPoint] = useState(null); // { lat, lng } once we have the rider's position
-  const [locating, setLocating] = useState(true);
-  const [note, setNote] = useState(null); // why we are asking for a station instead
+  const [chosen, setChosen] = useState(false); // has the rider picked where to start (their location or a station)?
+  const [locating, setLocating] = useState(false);
+  const [note, setNote] = useState(null); // what went wrong with location, in plain words
   const [useStation, setUseStation] = useState(false);
   const [route, setRoute] = useState(null);
   const [status, setStatus] = useState('loading');
@@ -61,50 +64,104 @@ export default function DirectionsPanel({ placeId, onRoute, onLogged }) {
   const [busy, setBusy] = useState(false);
   const [tick, setTick] = useState(0);
   const shownFor = useRef(null); // which trip the shown route is for, so a refresh does not flash "Finding the way"
+  const alive = useRef(true);
+  const watchdog = useRef(null);
+
+  // `alive` says the panel is still on screen, so a late location answer never updates something that is gone.
+  // (Set to true here as well, because React can run an effect, undo it, and run it again.)
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+      clearTimeout(watchdog.current);
+    };
+  }, []);
 
   useEffect(() => {
     getStations().then((list) => setStations([...list].sort((a, b) => a.name.localeCompare(b.name))));
   }, []);
 
+  /** Location did not work: say why and let them pick a station. (Does not touch a station they already chose.) */
+  function giveUp(message) {
+    clearTimeout(watchdog.current);
+    if (!alive.current) return;
+    setLocating(false);
+    setUseStation(true);
+    setNote(message);
+  }
+
+  /** Called from a tap on "Use my current location": that tap is what lets phone browsers show the permission prompt. */
   function locate() {
     setNote(null);
-    if (!navigator.geolocation) {
-      setLocating(false);
-      setUseStation(true);
-      setNote('This browser cannot share your location, so choose where you are starting.');
+    if (!window.isSecureContext || !navigator.geolocation) {
+      giveUp("This browser can't share your location here, so choose a station to start from.");
       return;
     }
     setLocating(true);
+    clearTimeout(watchdog.current);
+    // If the prompt never shows or is ignored, neither callback fires in some browsers: do not wait forever.
+    // (A late answer is still used if it arrives.)
+    watchdog.current = setTimeout(
+      () => giveUp('Location is taking too long. Check that location is allowed for this site, or choose a station.'),
+      LOCATE_GIVE_UP_MS,
+    );
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const here = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         const all = await getStations();
-        const closest = Math.min(...all.map((s) => metersBetween(here, s)));
+        if (!alive.current) return;
+        clearTimeout(watchdog.current);
         setLocating(false);
+        const closest = Math.min(...all.map((s) => metersBetween(here, s)));
         if (closest > NEAR_BOSTON_M) {
           setUseStation(true);
           setNote("You're not near Boston, so choose a station to start from.");
         } else {
           setPoint(here);
+          setChosen(true);
           setUseStation(false);
+          setNote(null);
         }
       },
-      () => {
-        setLocating(false);
-        setUseStation(true);
-        setNote('Location is off, so choose where you are starting.');
+      (err) => {
+        const messages = {
+          1: "Location is blocked for this site. Allow it in your browser's site settings, or choose a station.",
+          2: "Your device couldn't work out where you are. Choose a station instead.",
+          3: 'Finding your location took too long. Try again, or choose a station.',
+        };
+        giveUp(messages[err?.code] ?? "Couldn't get your location. Choose a station instead.");
       },
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
+      { enableHighAccuracy: false, timeout: 12000, maximumAge: 120000 },
     );
   }
 
+  /** "Finding where you are" is taking a while: let them pick a station right now. */
+  function stopWaiting() {
+    clearTimeout(watchdog.current);
+    setLocating(false);
+    setUseStation(true);
+  }
+
+  // If this site already has permission, no prompt is needed: use it right away. Otherwise wait for the tap.
   useEffect(() => {
-    locate();
+    let cancelled = false;
+    navigator.permissions
+      ?.query({ name: 'geolocation' })
+      .then((p) => {
+        if (cancelled) return;
+        if (p.state === 'granted') locate();
+        else if (p.state === 'denied') setNote("Location is blocked for this site. Allow it in your browser's site settings, or choose a station.");
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Where the trip starts: the rider's position if we have it, otherwise the chosen station.
   const origin = useStation || !point ? { stationId: fromId } : point;
-  const originKey = locating ? null : JSON.stringify(origin);
+  const originKey = locating || !chosen ? null : JSON.stringify(origin);
+  const showing = chosen && !locating; // a route is on screen (or loading)
 
   useEffect(() => {
     if (originKey === null) return undefined;
@@ -143,6 +200,9 @@ export default function DirectionsPanel({ placeId, onRoute, onLogged }) {
 
   function chooseStation(id) {
     setFromId(id);
+    setChosen(true);
+    setUseStation(true);
+    setNote(null);
     try {
       localStorage.setItem(ORIGIN_KEY, id);
     } catch {
@@ -169,12 +229,17 @@ export default function DirectionsPanel({ placeId, onRoute, onLogged }) {
   return (
     <section className="directions" aria-label="Directions">
       {locating ? (
-        <p className="muted dir-note">Finding where you are…</p>
-      ) : useStation ? (
+        <p className="muted dir-note">
+          Finding where you are… <button className="link" onClick={stopWaiting}>Choose a station instead</button>
+        </p>
+      ) : useStation || !chosen ? (
         <div className="dir-from">
+          {!chosen && <p className="dir-ask">Where are you starting from?</p>}
+          <button className="btn btn-primary dir-locate" onClick={locate}>Use my current location</button>
           <label>
-            <span>Starting from</span>
-            <select value={fromId} onChange={(e) => chooseStation(e.target.value)}>
+            <span>{chosen ? 'Starting from' : 'Or choose a station'}</span>
+            <select value={chosen ? fromId : ''} onChange={(e) => chooseStation(e.target.value)}>
+              {!chosen && <option value="" disabled>Choose a station…</option>}
               {stations.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name} ({s.lines.join(', ')})
@@ -182,8 +247,7 @@ export default function DirectionsPanel({ placeId, onRoute, onLogged }) {
               ))}
             </select>
           </label>
-          {note && <p className="muted small">{note}</p>}
-          <button className="link" onClick={locate}>Use my current location</button>
+          {note && <p className="muted small dir-warn" role="status">{note}</p>}
         </div>
       ) : (
         <p className="dir-origin">
@@ -192,10 +256,10 @@ export default function DirectionsPanel({ placeId, onRoute, onLogged }) {
         </p>
       )}
 
-      {!locating && status === 'loading' && <p className="muted dir-note">Finding the way…</p>}
-      {!locating && status === 'error' && <p className="error">Could not work out a route from here.</p>}
+      {showing && status === 'loading' && <p className="muted dir-note">Finding the way…</p>}
+      {showing && status === 'error' && <p className="error">Could not work out a route from here.</p>}
 
-      {!locating && status === 'ready' && route && (
+      {showing && status === 'ready' && route && (
         <>
           <p className="dir-headline">
             <span className="dir-arrive"><small>Arrive</small><strong>{fmtClock(route.arrive_at)}</strong></span>
