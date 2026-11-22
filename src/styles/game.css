@@ -195,6 +195,11 @@ input, textarea, select { font-family: inherit; }
 }
 .pet-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; user-select: none; }
 .pet-art img.locked { filter: brightness(0); opacity: 0.2; }
+/* Habit accessories are see-through drawings the same size as the pet, laid over it. */
+.pet-art img.pet-acc { z-index: 1; pointer-events: none; }
+.wearing { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.wearing li { padding: 3px 10px; border: 1.5px dashed var(--line-soft); border-radius: 999px; }
+.wearing b { color: var(--ink); font-weight: 700; margin-right: 4px; }
 
 /* ---------- Home ---------- */
 .home { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }

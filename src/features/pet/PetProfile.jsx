@@ -13,6 +13,7 @@ import {
   setPetNickname,
 } from '../../lib/api.js';
 import { Icon, LevelPill, LevelTrack, PetArt, Stars, XpBar } from '../../components/ui.jsx';
+import { usePetAccessories } from '../../lib/accessories.js';
 import { boundsOfFeature, boundsOfPoints, formatDate, formatFullDate, listNames, petProgress, titleCase } from '../../lib/game.js';
 import JourneyMap from '../map/JourneyMap.jsx';
 import { loreFor } from './petLore.js';
@@ -57,6 +58,7 @@ function Fact({ label, children }) {
 export default function PetProfile({ petId, version, signedIn, onBack, onChange, onExplore, onGo }) {
   const [allJournal, setAllJournal] = useState(false);
   const [data, setData] = useState(null);
+  const worn = usePetAccessories(petId);
   const [missing, setMissing] = useState(false);
   const [editing, setEditing] = useState(false);
   const [nickname, setNickname] = useState('');
@@ -229,6 +231,14 @@ export default function PetProfile({ petId, version, signedIn, onBack, onChange,
             <p className="pet-species">
               {pet.is_starter ? 'Starter' : 'Neighborhood pet'} <span aria-hidden="true">·</span> {pet.name} <span aria-hidden="true">·</span> <LevelPill level={pet.level} max={pet.max_level} />
             </p>
+
+            {worn.length > 0 && (
+              <ul className="wearing">
+                {worn.map((a) => (
+                  <li key={a.id}><b>{a.label}</b> {a.why}</li>
+                ))}
+              </ul>
+            )}
 
             <div className="hero-xp">
               <XpBar percent={progress.percent} label="XP toward the next level" />

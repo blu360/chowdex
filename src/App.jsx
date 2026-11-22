@@ -29,6 +29,7 @@ import SemesterRecap from './features/recap/SemesterRecap.jsx';
 import { SCHOOLS } from './lib/schools.js';
 import { clearOnboarding, loadOnboarding, saveOnboarding } from './lib/onboarding.js';
 import { Icon } from './components/ui.jsx';
+import { refreshAccessories } from './lib/accessories.js';
 import SketchFilters from './components/SketchFilters.jsx';
 import TrainTransition, { TRAIN_ORDER, TRANSITION_SWAP_MS, TRANSITION_TOTAL_MS } from './components/TrainTransition.jsx';
 
@@ -148,6 +149,11 @@ export default function App() {
     return () => {
       cancelled = true;
     };
+  }, [version]);
+
+  // Pets wear things based on the food journal, so look again whenever anything changes.
+  useEffect(() => {
+    refreshAccessories();
   }, [version]);
 
   const run = (fn) => async () => {
