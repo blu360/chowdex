@@ -662,9 +662,51 @@ export function createSupabaseApi({ apiError, levelFromXp, tierFromPercent, dail
         return d.toISOString();
       })();
       const rows = must(await sb.rpc('campus_board', { p_since: from })) ?? [];
+      // Miles and CO2 come from migration 8. Until it is applied this call fails and the board goes without them.
+      const { data: greenRows, error: greenError } = await sb.rpc('campus_green', { p_since: from });
+      const green = greenError ? null : new Map((greenRows ?? []).map((g) => [g.school_id, g]));
       return rows
-        .map((r) => ({ school_id: r.school_id, explorers: r.explorers, meals: r.meals, places: r.places, neighborhoods: r.neighborhoods }))
+        .map((r) => {
+          const g = green?.get(r.school_id);
+          return {
+            school_id: r.school_id, explorers: r.explorers, meals: r.meals, places: r.places, neighborhoods: r.neighborhoods,
+            trips: green ? g?.trips ?? 0 : null,
+            miles: green ? Number(g?.miles ?? 0) : null,
+            co2_saved_kg: green ? Number(g?.co2_saved_kg ?? 0) : null,
+          };
+        })
         .sort((a, b) => b.neighborhoods - a.neighborhoods || b.places - a.places || b.meals - a.meals);
+    },
+
+    /**
+     * Copy the browser's green-trip log to the signed-in account: numbers only (no place, no position).
+     * Trips already there are left alone. Does nothing when signed out.
+     * @param {Object[]} trips  from src/lib/trips.js
+     */
+    async saveTrips(trips) {
+      const session = await currentSession();
+      if (!session || !trips.length) return;
+      const sb = await client();
+      const rows = trips.map((t) => ({
+        user_id: session.user.id,
+        client_id: t.id,
+        at: t.at,
+        mode: t.mode === 'walk' ? 'walk' : 'transit',
+        transit_miles: t.transit_miles,
+        walk_miles: t.walk_miles,
+        car_miles: t.car_miles,
+        co2_kg: t.co2_kg,
+        co2_saved_kg: t.co2_saved_kg,
+      }));
+      must(await sb.from('green_trips').upsert(rows, { onConflict: 'user_id,client_id', ignoreDuplicates: true }));
+    },
+
+    /** Remove one trip from the account copy. @param {string} tripId  the trip's id in the browser log */
+    async removeTrip(tripId) {
+      const session = await currentSession();
+      if (!session) return;
+      const sb = await client();
+      must(await sb.from('green_trips').delete().eq('user_id', session.user.id).eq('client_id', tripId));
     },
 
     async getCampusPopular(schoolId, { limit = 5 } = {}) {

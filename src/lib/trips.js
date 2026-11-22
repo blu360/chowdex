@@ -2,8 +2,9 @@
  * The green-trips log: trips the rider chooses to record, and the running tally.
  *
  * Privacy: a trip is only ever added when the rider taps "I took this trip". It records the place, the miles, and the
- * carbon, never the rider's position, and the log is kept in this browser (localStorage), not sent anywhere.
- * Syncing it to the account is a later step.
+ * carbon, never the rider's position, and the log is kept in this browser (localStorage).
+ * With the real backend and a signed-in rider, api.js also copies each trip's numbers (miles and carbon, no place)
+ * to their account so the campus leaderboard can total them: see supabase/migrations/20261121000008_green_trips.sql.
  */
 const KEY = 'chowdex.trips';
 const MAX_TRIPS = 500;

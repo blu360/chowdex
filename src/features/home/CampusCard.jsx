@@ -17,6 +17,19 @@ const CHALLENGES = [
 const weekNumber = (d = new Date()) => Math.floor((d.getTime() - new Date(d.getFullYear(), 0, 1).getTime()) / (7 * 86400000));
 
 const schoolName = (id) => SCHOOLS.find((s) => s.id === id)?.name ?? id;
+const one = (n) => (Math.round(n * 10) / 10).toLocaleString('en-US', { maximumFractionDigits: 1 });
+
+/** What a school did this week: areas and places, then miles by train and on foot and the CO2 that saved. */
+function BoardStats({ row }) {
+  return (
+    <div className="board-stats">
+      <small>{row.neighborhoods} areas · {row.places} places</small>
+      {row.miles != null && (
+        <small className="green"><Icon name="leaf" size={12} />{one(row.miles)} mi · {one(row.co2_saved_kg)} kg CO₂ saved</small>
+      )}
+    </div>
+  );
+}
 
 /**
  * Your campus: a weekly challenge for the whole school, the school leaderboard, and the places your
@@ -92,14 +105,14 @@ export default function CampusCard({ version, school, signedIn, onSetup, onExplo
             <li key={r.school_id} className={r.school_id === school.id ? 'me' : undefined}>
               <b>{i + 1}</b>
               <span>{schoolName(r.school_id)}</span>
-              <small>{r.neighborhoods} areas · {r.places} places</small>
+              <BoardStats row={r} />
             </li>
           ))}
           {rank >= BOARD_SHOWN && (
             <li className="me">
               <b>{rank + 1}</b>
               <span>{school.name}</span>
-              <small>{mine.neighborhoods} areas · {mine.places} places</small>
+              <BoardStats row={mine} />
             </li>
           )}
         </ol>

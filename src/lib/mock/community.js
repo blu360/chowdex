@@ -53,9 +53,9 @@ export function createMockCommunity({ places, schools }) {
   /**
    * One row per school. The sample part does not depend on `since`; the user's own meals since then
    * are added to their school.
-   * @param {{schoolId: string|null, myEntries: Array}} me   myEntries: the user's dex entries in the window
+   * @param {{schoolId: string|null, myEntries: Array, myTrips?: Array}} me   the user's dex entries and green trips in the window
    */
-  function board({ schoolId, myEntries }) {
+  function board({ schoolId, myEntries, myTrips = [] }) {
     const rows = schools.map((s) => {
       const seed = hash(`board|${s.id}`);
       return {
@@ -64,6 +64,9 @@ export function createMockCommunity({ places, schools }) {
         meals: 6 + (seed % 20),
         places: 4 + ((seed >> 3) % 13),
         neighborhoods: 2 + ((seed >> 6) % 6),
+        trips: 3 + ((seed >> 9) % 12),
+        miles: Math.round(10 * (6 + ((seed >> 12) % 400) / 10)) / 10,
+        co2_saved_kg: Math.round(10 * (1.5 + ((seed >> 15) % 120) / 10)) / 10,
       };
     });
     const mine = rows.find((r) => r.school_id === schoolId);
@@ -74,6 +77,12 @@ export function createMockCommunity({ places, schools }) {
       mine.meals += myEntries.length;
       mine.places += Math.ceil(myPlaces.size / 2); // some of your places are new to the school's list, some are not
       mine.neighborhoods = Math.min(24, mine.neighborhoods + Math.ceil(myHoods.size / 3));
+    }
+    if (mine && myTrips.length) {
+      const sum = (f) => myTrips.reduce((t, trip) => t + (Number(f(trip)) || 0), 0);
+      mine.trips += myTrips.length;
+      mine.miles = Math.round(10 * (mine.miles + sum((t) => t.transit_miles + t.walk_miles))) / 10;
+      mine.co2_saved_kg = Math.round(10 * (mine.co2_saved_kg + sum((t) => t.co2_saved_kg))) / 10;
     }
     return rows.sort((a, b) => b.neighborhoods - a.neighborhoods || b.places - a.places || b.meals - a.meals);
   }

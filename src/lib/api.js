@@ -346,6 +346,9 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
  * @property {number} meals
  * @property {number} places          different places
  * @property {number} neighborhoods   different neighborhoods (what the board is ranked by)
+ * @property {number|null} trips         green trips the school's students logged; null when the backend cannot say yet
+ * @property {number|null} miles         miles they travelled by train and on foot
+ * @property {number|null} co2_saved_kg  CO2 saved compared with driving
  */
 
 /**
@@ -705,7 +708,8 @@ const mockApi = {
     await delay();
     const from = since ?? startOfWeek();
     const myEntries = isSignedIn() ? readStore(DEX_KEY, []).filter((e) => e.visited_at >= from) : [];
-    return mockCommunity.board({ schoolId: mockSchool()?.school_id ?? null, myEntries });
+    const myTrips = isSignedIn() ? listTrips().filter((t) => t.at >= from) : [];
+    return mockCommunity.board({ schoolId: mockSchool()?.school_id ?? null, myEntries, myTrips });
   },
 
   /**
@@ -1232,7 +1236,11 @@ const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 /**
  * Directions and the green-trips log work the same in both modes: the route planner runs in the browser on the
  * bundled MBTA data, and the trip log lives in the browser (see src/lib/trips.js).
+ * With the real backend, a signed-in rider's trips are also copied to their account as numbers only (miles and
+ * carbon), so the campus leaderboard can add them up. That copy is best effort: the browser log is what the app reads.
  */
+const quietly = (promise) => Promise.resolve(promise).catch(() => {});
+
 const greenApi = {
   /**
    * How to get to a restaurant by train and on foot, with real MBTA times for the first train and a carbon
@@ -1261,7 +1269,10 @@ const greenApi = {
    * @returns {Promise<Trip>}
    */
   async logTrip(route) {
-    return addTripFromRoute(route);
+    const trip = addTripFromRoute(route);
+    // Send the whole log, not just this trip: it also catches up trips logged before syncing existed.
+    if (base.saveTrips) await quietly(base.saveTrips(listTrips()));
+    return trip;
   },
 
   /**
@@ -1291,6 +1302,7 @@ const greenApi = {
   /** @throws NOT_FOUND */
   async deleteTrip(tripId) {
     if (!removeTrip(tripId)) throw apiError('NOT_FOUND', `Trip not found: ${tripId}`);
+    if (base.removeTrip) await quietly(base.removeTrip(tripId));
   },
 
   /** @returns {Promise<TripTally>} */
