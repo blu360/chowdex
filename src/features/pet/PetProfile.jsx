@@ -235,7 +235,7 @@ export default function PetProfile({ petId, version, signedIn, onBack, onChange,
             {worn.length > 0 && (
               <ul className="wearing">
                 {worn.map((a) => (
-                  <li key={a.id}><b>{a.label}</b> {a.why}</li>
+                  <li key={a.id} className={a.worn ? undefined : 'off'}><b>{a.label}</b> {a.why}{a.worn ? '' : ' · put away'}</li>
                 ))}
               </ul>
             )}

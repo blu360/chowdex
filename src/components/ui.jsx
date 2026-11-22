@@ -120,7 +120,7 @@ export function PetArt({ pet, tint, locked = false, className = '' }) {
   return (
     <span className={`pet-art ${className}`} style={tint ? { '--tint': tint } : undefined}>
       <img src={pet.image} alt="" loading="lazy" className={locked ? 'locked' : undefined} draggable="false" />
-      {!locked && worn.map((a) => (
+      {!locked && worn.filter((a) => a.worn).map((a) => (
         <img key={a.id} src={a.image} alt="" className="pet-acc" draggable="false" />
       ))}
     </span>
