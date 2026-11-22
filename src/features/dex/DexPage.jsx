@@ -3,6 +3,7 @@ import { deleteDexEntry, getNeighborhoodProgress, getPetJournal, updateDexEntry 
 import { Icon, Stars, XpBar } from '../../components/ui.jsx';
 import { formatFullDate, titleCase } from '../../lib/game.js';
 import { shrinkPhoto } from '../../lib/image.js';
+import { cuisineLabel } from '../../lib/placeLabels.js';
 
 const SORTS = [
   { id: 'new', label: 'Newest first' },
@@ -13,7 +14,7 @@ const SORTS = [
 
 /** Does this journal entry match what the user typed? Looks at the place, cuisine, area, dish, and note. */
 function matches(entry, query) {
-  const hay = [entry.place.name, entry.place.cuisine, entry.place.neighborhood?.name, entry.favorite_dish, entry.note]
+  const hay = [entry.place.name, entry.place.cuisine, cuisineLabel(entry.place.cuisine), entry.place.neighborhood?.name, entry.favorite_dish, entry.note]
     .filter(Boolean)
     .join(' ')
     .toLowerCase();
@@ -82,7 +83,7 @@ function DexEntryCard({ entry, onSaved, onShowOnMap }) {
           <span className={entry.fed ? 'gain' : 'gain none'}>{entry.fed ? `+${entry.xp_gained} XP` : 'No XP'}</span>
         </div>
         <p className="muted small">
-          {titleCase(place.cuisine)}
+          {cuisineLabel(place.cuisine)}
           {place.price_level ? ` · ${'$'.repeat(place.price_level)}` : ''}
           {place.neighborhood ? ` · ${place.neighborhood.name}` : ''}
           {` · ${formatFullDate(entry.visited_at)}`}
@@ -220,7 +221,7 @@ export default function DexPage({ version, signedIn, onChange, onExplore, onGo, 
             <span className="stat-chip"><b>{stats.photos}</b> photos</span>
             {stats.average_rating != null && <span className="stat-chip"><b>{stats.average_rating}</b> average rating</span>}
             {stats.top_cuisines.map((c) => (
-              <span key={c.cuisine} className="stat-chip"><b>{titleCase(c.cuisine)}</b> × {c.count}</span>
+              <span key={c.cuisine} className="stat-chip"><b>{cuisineLabel(c.cuisine)}</b> × {c.count}</span>
             ))}
           </div>
         )}

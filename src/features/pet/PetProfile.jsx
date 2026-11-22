@@ -17,6 +17,7 @@ import { boundsOfFeature, boundsOfPoints, formatDate, formatFullDate, listNames,
 import JourneyMap from '../map/JourneyMap.jsx';
 import { loreFor } from './petLore.js';
 import { STARTER_TINT, tintsFor } from './PetsPage.jsx';
+import { cuisineLabel } from '../../lib/placeLabels.js';
 
 const EVENT_ICON = { unlocked: 'pets', fed: 'meal', full: 'meal', level_up: 'bolt', badge: 'medal' };
 const HISTORY_PREVIEW = 6;
@@ -281,7 +282,7 @@ export default function PetProfile({ petId, version, signedIn, onBack, onChange,
               </ul>
               <dl className="favorites">
                 <Fact label="Favorite cuisine">
-                  {topCuisine ? titleCase(topCuisine.cuisine) : <span className="muted">Still deciding</span>}
+                  {topCuisine ? cuisineLabel(topCuisine.cuisine) : <span className="muted">Still deciding</span>}
                 </Fact>
                 <Fact label="Favorite restaurant">
                   {favorite ? (
@@ -360,7 +361,7 @@ export default function PetProfile({ petId, version, signedIn, onBack, onChange,
                             <span className={e.fed ? 'gain' : 'gain none'}>{e.fed ? `+${e.xp_gained} XP` : 'No XP'}</span>
                           </p>
                           <small>
-                            {titleCase(e.place.cuisine)} · {formatDate(e.visited_at)}
+                            {cuisineLabel(e.place.cuisine)} · {formatDate(e.visited_at)}
                             {e.favorite_dish ? ` · ${e.favorite_dish}` : ''}
                           </small>
                           <Stars value={e.my_rating} />

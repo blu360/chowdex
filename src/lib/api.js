@@ -1126,6 +1126,9 @@ export const IS_MOCK = USE_MOCK;
 
 const base = USE_MOCK ? mockApi : realApi;
 
+/** Where the small server endpoints live (the photo endpoint): this site by default, or VITE_API_BASE for a separate server. */
+const API_BASE = import.meta.env.VITE_API_BASE ?? '';
+
 /**
  * Directions and the green-trips log work the same in both modes: the route planner runs in the browser on the
  * bundled MBTA data, and the trip log lives in the browser (see src/lib/trips.js).
@@ -1161,6 +1164,25 @@ const greenApi = {
     return addTripFromRoute(route);
   },
 
+  /**
+   * One live Google photo for a place, with the photographer's credit (Google requires showing it).
+   * Loaded from our photo endpoint when a place card opens; never stored. Null when the place has no photo,
+   * no Google match, or the photo service is off or over its daily cap.
+   * @param {string} placeId
+   * @returns {Promise<{url: string, attributions: {name: string, uri: string}[]} | null>}
+   */
+  async getPlacePhoto(placeId) {
+    try {
+      const place = await base.getPlace(placeId);
+      if (!place.google_place_id) return null;
+      const res = await fetch(`${API_BASE}/api/place-photo?id=${encodeURIComponent(place.google_place_id)}`);
+      if (!res.ok) return null;
+      return (await res.json()).photo ?? null;
+    } catch {
+      return null;
+    }
+  },
+
   /** @returns {Promise<Trip[]>} newest first */
   async getTrips() {
     return listTrips();
@@ -1181,6 +1203,7 @@ const impl = { ...base, ...greenApi };
 
 export const {
   getDirections,
+  getPlacePhoto,
   logTrip,
   getTrips,
   deleteTrip,

@@ -783,3 +783,13 @@ input, textarea, select { font-family: inherit; }
   font: 500 11.5px/1.5 var(--font-ui); font-style: normal; white-space: nowrap;
 }
 :root[data-theme='night'] .spot-why i { background: transparent; border-color: var(--muted); color: inherit; }
+
+/* Place card: the one-line description under the name */
+.place-blurb { margin: 2px 0 0; font: 500 14.5px/1.4 var(--font-ui); color: var(--ink); }
+
+/* Place card photo (a live Google photo, with the photographer's credit) */
+.place-photo { margin: 0 0 10px; }
+.place-photo img { display: block; width: 100%; height: 150px; object-fit: cover; border: 2.5px solid var(--ink); border-radius: 14px; background: var(--surface-mid, var(--gray-light)); }
+.place-photo.loading { height: 150px; border: 2.5px dashed var(--gray); border-radius: 14px; background: var(--gray-light); opacity: 0.6; }
+.place-photo figcaption { margin-top: 4px; font: 500 11px/1.3 var(--font-ui); color: var(--muted); }
+.place-photo figcaption a { color: inherit; text-decoration: underline; }

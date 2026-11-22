@@ -3,6 +3,7 @@ import { getDex, getNeighborhoodProgress, getPlace, getPlaces, getStamps } from 
 import { Icon } from '../../components/ui.jsx';
 import { titleCase } from '../../lib/game.js';
 import { pickSpotlight } from '../../lib/spotlight.js';
+import { cuisineLabel } from '../../lib/placeLabels.js';
 
 /**
  * Local spotlight: three small, local places the user has not tried yet, each with the reasons it
@@ -38,7 +39,7 @@ export default function Spotlight({ version, onExplore }) {
               <span className="spot-main">
                 <b>{p.name}</b>
                 <small>
-                  {titleCase(p.cuisine)}
+                  {cuisineLabel(p.cuisine)}
                   {p.price_level ? ` · ${'$'.repeat(p.price_level)}` : ''}
                   {p.neighborhood ? ` · ${p.neighborhood.name}` : ''}
                   {p.details?.rating != null ? ` · ★ ${p.details.rating.toFixed(1)}` : ''}

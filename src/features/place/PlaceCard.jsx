@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { getPlace, getDex, addToDex, getFeedingStatus, getStamps, getStations } from '../../lib/api.js';
+import { getPlace, getPlacePhoto, getDex, addToDex, getFeedingStatus, getStamps, getStations } from '../../lib/api.js';
 import { LINE_COLORS } from '../../lib/lines.js';
 import { shrinkPhoto } from '../../lib/image.js';
 import DirectionsPanel from './DirectionsPanel.jsx';
+import { placeBlurb } from '../../lib/placeLabels.js';
 
 export function LineChips({ lines }) {
   return (
@@ -16,6 +17,7 @@ export function LineChips({ lines }) {
 
 export default function PlaceCard({ placeId, signedIn, onClose, onDexChange, onSignIn, onRoute, onTripLogged }) {
   const [showDirections, setShowDirections] = useState(false);
+  const [livePhoto, setLivePhoto] = useState(undefined); // the Google photo: undefined while loading, null if none
   const [place, setPlace] = useState(null);
   const [status, setStatus] = useState('loading');
   const [collected, setCollected] = useState(false);
@@ -50,6 +52,18 @@ export default function PlaceCard({ placeId, signedIn, onClose, onDexChange, onS
     };
   }, [placeId, signedIn]);
 
+  // A live Google photo (never stored). It loads after the card so the card itself is not held up.
+  useEffect(() => {
+    let cancelled = false;
+    setLivePhoto(undefined);
+    getPlacePhoto(placeId)
+      .then((p) => !cancelled && setLivePhoto(p))
+      .catch(() => !cancelled && setLivePhoto(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [placeId]);
+
   async function handleAdd(e) {
     e.preventDefault();
     setBusy(true);
@@ -82,18 +96,32 @@ export default function PlaceCard({ placeId, signedIn, onClose, onDexChange, onS
       {status === 'error' && <p className="error">Could not load this place.</p>}
       {status === 'ready' && place && (
         <>
+          {livePhoto === undefined && place.google_place_id && <div className="place-photo loading" aria-hidden="true" />}
+          {livePhoto && (
+            <figure className="place-photo">
+              <img src={livePhoto.url} alt={`Photo of ${place.name}`} loading="lazy" onError={() => setLivePhoto(null)} />
+              <figcaption>
+                Photo{' '}
+                {livePhoto.attributions.map((a, i) => (
+                  <span key={i}>
+                    {i > 0 && ', '}
+                    by {a.uri ? <a href={a.uri} target="_blank" rel="noreferrer">{a.name || 'a Google Maps user'}</a> : a.name}
+                  </span>
+                ))}
+                {livePhoto.attributions.length ? ' · ' : ''}Google Maps
+              </figcaption>
+            </figure>
+          )}
           <h2>{place.name}</h2>
-          <p className="muted">
-            {place.cuisine.replace('_', ' ')}
-            {place.price_level ? ` · ${'$'.repeat(place.price_level)}` : ''}
-            {place.open_late ? ' · open late' : ''}
-          </p>
+          <p className="place-blurb">{placeBlurb(place)}</p>
 
           <div className="rating">
             {place.details?.rating != null ? (
               <>
                 <strong>★ {place.details.rating.toFixed(1)}</strong>
-                <span className="muted"> ({place.details.rating_count} ratings)</span>
+                <span className="muted">
+                  {place.details.rating_count != null ? ` (${place.details.rating_count.toLocaleString()} ratings)` : ''} · Google
+                </span>
               </>
             ) : (
               <span className="muted">No ratings yet</span>

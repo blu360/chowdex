@@ -65,6 +65,7 @@ Seeded from OpenStreetMap. Public read, no client writes.
 | `nearest_stop_id` | text, FK to `mbta_stops.id` | computed by the seed script |
 | `nearest_stop_distance_m` | int | |
 | `neighborhood_id` | text, nullable, FK to `neighborhoods.id` | set by the seed script with a PostGIS point-in-polygon join; null if outside all 24 areas |
+| `rating`, `rating_count`, `rating_fetched_at` | numeric(2,1), int, timestamptz | a short-lived cache of the Google star rating, saved in batches by `npm run ratings` (never fetched while someone uses the app). The app ignores a rating older than 30 days. `rating_fetched_at` is also set when Google had no match, so it is not retried every run. Check Google's current Places terms on storing ratings before launch |
 
 ### `dex_entries`
 A user's collected places. Users can only read and write their own rows.

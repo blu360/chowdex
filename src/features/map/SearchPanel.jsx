@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { getPlaces, getStations, getNeighborhoods } from '../../lib/api.js';
 import { LINE_COLORS } from '../../lib/lines.js';
 import { PICKABLE_STYLES } from './mapStyles.js';
+import { cuisineLabel } from '../../lib/placeLabels.js';
 
 /** [[west, south], [east, north]] of a GeoJSON geometry. */
 function geometryBounds(geometry) {
@@ -58,7 +59,7 @@ export default function SearchPanel({ filters, onFilters, layers, onLayers, styl
     if (!q) return null;
     const by = (key) => (a, b) => rank(key(a), q) - rank(key(b), q);
     const places = data.places
-      .filter((p) => p.name.toLowerCase().includes(q) || p.cuisine.replace('_', ' ').includes(q))
+      .filter((p) => p.name.toLowerCase().includes(q) || p.cuisine.replace('_', ' ').includes(q) || cuisineLabel(p.cuisine).toLowerCase().includes(q))
       .sort(by((p) => p.name))
       .slice(0, 5);
     const stations = data.stations.filter((s) => s.name.toLowerCase().includes(q)).sort(by((s) => s.name)).slice(0, 4);
@@ -136,7 +137,7 @@ export default function SearchPanel({ filters, onFilters, layers, onLayers, styl
               {results.places.map((p) => (
                 <button key={p.id} className="result" onClick={() => pickPlace(p)}>
                   <i className="sym sym-place" />
-                  <span>{p.name}<small>{p.cuisine.replace('_', ' ')} · near {p.nearest_stop.name}</small></span>
+                  <span>{p.name}<small>{cuisineLabel(p.cuisine)}{p.neighborhood ? ` · ${p.neighborhood.name}` : ''} · near {p.nearest_stop.name}</small></span>
                 </button>
               ))}
             </div>

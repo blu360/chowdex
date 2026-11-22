@@ -118,7 +118,11 @@ export function createSupabaseApi({ apiError, levelFromXp, tierFromPercent, dail
   /* -------------------------------- Places -------------------------------- */
 
   const PLACE_COLUMNS =
-    'id,name,lat,lng,cuisine,price_level,opening_hours,open_late,website,google_place_id,nearest_stop_distance_m,neighborhood_id,stop:mbta_stops(id,name,lines)';
+    'id,name,lat,lng,cuisine,price_level,opening_hours,open_late,website,google_place_id,nearest_stop_distance_m,neighborhood_id,rating,rating_count,rating_fetched_at,stop:mbta_stops(id,name,lines)';
+
+  /** Cached Google ratings are only shown for this long after they were fetched (Google's terms limit storing them). */
+  const RATING_MAX_AGE_MS = 30 * 24 * 3600 * 1000;
+  const ratingsById = new Map(); // place id -> { rating, rating_count } (only fresh ones)
 
   let placesPromise;
   /** All ~2,000 places, loaded once and filtered in the browser (the list is small and public). */
@@ -130,6 +134,11 @@ export function createSupabaseApi({ apiError, levelFromXp, tierFromPercent, dail
         const page = must(await sb.from('places').select(PLACE_COLUMNS).order('id').range(from, from + PAGE - 1));
         rows.push(...page);
         if (page.length < PAGE) break;
+      }
+      ratingsById.clear();
+      for (const r of rows) {
+        const fresh = r.rating != null && r.rating_fetched_at && Date.now() - new Date(r.rating_fetched_at).getTime() < RATING_MAX_AGE_MS;
+        if (fresh) ratingsById.set(r.id, { rating: Number(r.rating), rating_count: r.rating_count ?? null });
       }
       return rows.map((r) => ({
         id: r.id,
@@ -311,8 +320,10 @@ export function createSupabaseApi({ apiError, levelFromXp, tierFromPercent, dail
     async getPlace(id) {
       const place = (await allPlaces()).find((p) => p.id === id);
       if (!place) throw apiError('NOT_FOUND', `Place not found: ${id}`);
-      // Ratings come live from Google Places via an edge function (not built yet): until then, no ratings.
-      return { ...place, details: { rating: null, rating_count: null, open_now: null } };
+      // Ratings are a cache saved by scripts/fetch-ratings.mjs (never fetched while someone is using the app).
+      // Places without a fresh cached rating show "No ratings yet".
+      const cached = ratingsById.get(id);
+      return { ...place, details: { rating: cached?.rating ?? null, rating_count: cached?.rating_count ?? null, open_now: null } };
     },
 
     async getArrivals(stopId) {
