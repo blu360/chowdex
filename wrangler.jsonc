@@ -1,0 +1,15 @@
+{
+  // Cloudflare Worker config for Chowdex. The name must match the Cloudflare project name.
+  "name": "bostonhacks",
+  "main": "worker/index.js",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    // The app uses hash routes (/#/home), so there is nothing to rewrite, but this keeps odd paths from showing a bare 404.
+    "not_found_handling": "single-page-application",
+    // These paths always go to the Worker first, never to the static files.
+    "run_worker_first": ["/api/*", "/mbta/*"]
+  },
+  "observability": { "enabled": true }
+}

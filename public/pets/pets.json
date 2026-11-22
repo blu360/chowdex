@@ -1,0 +1,227 @@
+[
+  {
+    "areaId": "allston",
+    "area": "Allston",
+    "areaColor": "#338ae1",
+    "animal": "Raccoon",
+    "png": "/pets/png/allston.png",
+    "svg": "/pets/svg/allston.svg",
+    "starter": false
+  },
+  {
+    "areaId": "back-bay",
+    "area": "Back Bay",
+    "areaColor": "#751ecc",
+    "animal": "Swan",
+    "png": "/pets/png/back-bay.png",
+    "svg": "/pets/svg/back-bay.svg",
+    "starter": false
+  },
+  {
+    "areaId": "bay-village",
+    "area": "Bay Village",
+    "areaColor": "#aed241",
+    "animal": "Mouse",
+    "png": "/pets/png/bay-village.png",
+    "svg": "/pets/svg/bay-village.svg",
+    "starter": false
+  },
+  {
+    "areaId": "beacon-hill",
+    "area": "Beacon Hill",
+    "areaColor": "#dede21",
+    "animal": "Mallard Duck",
+    "png": "/pets/png/beacon-hill.png",
+    "svg": "/pets/svg/beacon-hill.svg",
+    "starter": false
+  },
+  {
+    "areaId": "brighton",
+    "area": "Brighton",
+    "areaColor": "#33e133",
+    "animal": "Calf",
+    "png": "/pets/png/brighton.png",
+    "svg": "/pets/svg/brighton.svg",
+    "starter": false
+  },
+  {
+    "areaId": "cambridge",
+    "area": "Cambridge",
+    "areaColor": "#d24165",
+    "animal": "Owl",
+    "png": "/pets/png/cambridge.png",
+    "svg": "/pets/svg/cambridge.svg",
+    "starter": false
+  },
+  {
+    "areaId": "charlestown",
+    "area": "Charlestown",
+    "areaColor": "#e18a33",
+    "animal": "Hermit Crab",
+    "png": "/pets/png/charlestown.png",
+    "svg": "/pets/svg/charlestown.svg",
+    "starter": false
+  },
+  {
+    "areaId": "chinatown-leather-district",
+    "area": "Chinatown–Leather District",
+    "areaColor": "#a730cf",
+    "animal": "Dragon",
+    "png": "/pets/png/chinatown-leather-district.png",
+    "svg": "/pets/svg/chinatown-leather-district.svg",
+    "starter": false
+  },
+  {
+    "areaId": "dorchester",
+    "area": "Dorchester",
+    "areaColor": "#be2d9a",
+    "animal": "Ladybug",
+    "png": "/pets/png/dorchester.png",
+    "svg": "/pets/svg/dorchester.svg",
+    "starter": false
+  },
+  {
+    "areaId": "downtown",
+    "area": "Downtown",
+    "areaColor": "#cc1e1e",
+    "animal": "Grasshopper",
+    "png": "/pets/png/downtown.png",
+    "svg": "/pets/svg/downtown.svg",
+    "starter": false
+  },
+  {
+    "areaId": "east-boston",
+    "area": "East Boston",
+    "areaColor": "#21de80",
+    "animal": "Seagull",
+    "png": "/pets/png/east-boston.png",
+    "svg": "/pets/svg/east-boston.svg",
+    "starter": false
+  },
+  {
+    "areaId": "fenway-kenmore",
+    "area": "Fenway–Kenmore",
+    "areaColor": "#75cc1e",
+    "animal": "Bullfrog",
+    "png": "/pets/png/fenway-kenmore.png",
+    "svg": "/pets/svg/fenway-kenmore.svg",
+    "starter": false
+  },
+  {
+    "areaId": "hyde-park",
+    "area": "Hyde Park",
+    "areaColor": "#2d51be",
+    "animal": "Wild Turkey",
+    "png": "/pets/png/hyde-park.png",
+    "svg": "/pets/svg/hyde-park.svg",
+    "starter": false
+  },
+  {
+    "areaId": "jamaica-plain",
+    "area": "Jamaica Plain",
+    "areaColor": "#30a7cf",
+    "animal": "Great Blue Heron",
+    "png": "/pets/png/jamaica-plain.png",
+    "svg": "/pets/svg/jamaica-plain.svg",
+    "starter": false
+  },
+  {
+    "areaId": "mattapan",
+    "area": "Mattapan",
+    "areaColor": "#58cf30",
+    "animal": "Trolley Caterpillar",
+    "png": "/pets/png/mattapan.png",
+    "svg": "/pets/svg/mattapan.svg",
+    "starter": false
+  },
+  {
+    "areaId": "mission-hill",
+    "area": "Mission Hill",
+    "areaColor": "#e133e1",
+    "animal": "Mountain Goat",
+    "png": "/pets/png/mission-hill.png",
+    "svg": "/pets/svg/mission-hill.svg",
+    "starter": false
+  },
+  {
+    "areaId": "north-end",
+    "area": "North End",
+    "areaColor": "#2121de",
+    "animal": "Firefly",
+    "png": "/pets/png/north-end.png",
+    "svg": "/pets/svg/north-end.svg",
+    "starter": false
+  },
+  {
+    "areaId": "roslindale",
+    "area": "Roslindale",
+    "areaColor": "#de2180",
+    "animal": "Rabbit",
+    "png": "/pets/png/roslindale.png",
+    "svg": "/pets/svg/roslindale.svg",
+    "starter": false
+  },
+  {
+    "areaId": "roxbury",
+    "area": "Roxbury",
+    "areaColor": "#cf5830",
+    "animal": "Puddingstone Tortoise",
+    "png": "/pets/png/roxbury.png",
+    "svg": "/pets/svg/roxbury.svg",
+    "starter": false
+  },
+  {
+    "areaId": "south-boston",
+    "area": "South Boston",
+    "areaColor": "#6541d2",
+    "animal": "Clam",
+    "png": "/pets/png/south-boston.png",
+    "svg": "/pets/svg/south-boston.svg",
+    "starter": false
+  },
+  {
+    "areaId": "south-end",
+    "area": "South End",
+    "areaColor": "#1ecccc",
+    "animal": "Peacock",
+    "png": "/pets/png/south-end.png",
+    "svg": "/pets/svg/south-end.svg",
+    "starter": false
+  },
+  {
+    "areaId": "west-end",
+    "area": "West End",
+    "areaColor": "#41d2ae",
+    "animal": "Electric Eel",
+    "png": "/pets/png/west-end.png",
+    "svg": "/pets/svg/west-end.svg",
+    "starter": false
+  },
+  {
+    "areaId": "west-roxbury",
+    "area": "West Roxbury",
+    "areaColor": "#be9a2d",
+    "animal": "Lamb",
+    "png": "/pets/png/west-roxbury.png",
+    "svg": "/pets/svg/west-roxbury.svg",
+    "starter": false
+  },
+  {
+    "areaId": "wharf-district",
+    "area": "Wharf District",
+    "areaColor": "#2dbe51",
+    "animal": "Lobster",
+    "png": "/pets/png/wharf-district.png",
+    "svg": "/pets/svg/wharf-district.svg",
+    "starter": false
+  },
+  {
+    "areaId": "starter",
+    "area": "Starter (any area)",
+    "areaColor": "#1f3b73",
+    "animal": "Boston Terrier",
+    "png": "/pets/png/starter.png",
+    "svg": "/pets/svg/starter.svg",
+    "starter": true
+  }
+]
