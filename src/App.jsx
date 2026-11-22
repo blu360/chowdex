@@ -23,6 +23,8 @@ import DexPage from './features/dex/DexPage.jsx';
 import PetsPage from './features/pet/PetsPage.jsx';
 import PetProfile from './features/pet/PetProfile.jsx';
 import RewardToast from './components/RewardToast.jsx';
+import Onboarding from './features/onboarding/Onboarding.jsx';
+import { clearOnboarding, loadOnboarding } from './lib/onboarding.js';
 import { Icon } from './components/ui.jsx';
 import SketchFilters from './components/SketchFilters.jsx';
 import TrainTransition, { TRAIN_ORDER, TRANSITION_SWAP_MS, TRANSITION_TOTAL_MS } from './components/TrainTransition.jsx';
@@ -81,6 +83,7 @@ export default function App() {
   const [trainsInfo, setTrainsInfo] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [reward, setReward] = useState(null); // what the last logged meal earned
+  const [onboarding, setOnboarding] = useState(false); // the first-run setup is open
 
   const [transition, setTransition] = useState(null); // { id, train } while a train is crossing the screen
   const trainCount = useRef(0);
@@ -203,6 +206,13 @@ export default function App() {
   };
 
   const signedIn = Boolean(user);
+
+  // First time this person signs in on this browser: walk them through setup (see features/onboarding).
+  const userId = user?.id ?? null;
+  useEffect(() => {
+    if (userId && !loadOnboarding(userId)?.done) setOnboarding(true);
+    if (!userId) setOnboarding(false);
+  }, [userId]);
   const onSignIn = act(signInWithGoogle);
   const onDemo = IS_MOCK ? act(loadDemoData) : undefined; // demo data only exists in mock mode
 
@@ -261,12 +271,21 @@ export default function App() {
               ) : (
                 <button className="btn btn-small btn-solid" onClick={onSignIn}>Sign in with Google</button>
               )}
+              {user && (
+                <button className="btn btn-small btn-quiet" onClick={() => { setMenuOpen(false); setOnboarding(true); }}>
+                  Run setup again
+                </button>
+              )}
               {onDemo && (
                 <button className="btn btn-small btn-quiet" onClick={onDemo} title="Mock mode: fill the dex with sample places">
                   Load demo data
                 </button>
               )}
-              {IS_MOCK && user && <button className="btn btn-small btn-quiet" onClick={act(resetDemoData)}>Reset</button>}
+              {IS_MOCK && user && (
+                <button className="btn btn-small btn-quiet" onClick={act(async () => { clearOnboarding(user.id); await resetDemoData(); })}>
+                  Reset
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -357,6 +376,9 @@ export default function App() {
           ))}
 
         {reward && <RewardToast reward={reward} onClose={() => setReward(null)} onOpenPet={openPet} />}
+        {onboarding && user && !transition && (
+          <Onboarding user={user} onClose={() => setOnboarding(false)} onDexChange={bump} onExplore={exploreTo} />
+        )}
       </main>
 
       <nav className="bottom-nav" aria-label="Main">
