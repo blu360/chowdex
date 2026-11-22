@@ -10,6 +10,10 @@
  */
 import { STAMP_RADIUS_M } from './api.js';
 import { isLocalFavorite, locationCounts, normalizeName } from './chains.js';
+import { distanceM } from './onboarding.js';
+
+const WALKABLE_M = 1000; // about a 12 minute walk from campus
+const NEAR_M = 2400; // about a mile and a half: a short ride
 
 /** A rating this high with this few reviews reads as "locals know it, tourists have not found it". */
 const GEM_MIN_RATING = 4.3;
@@ -24,12 +28,13 @@ const CANDIDATES = 9; // how many top places get their live details looked up be
  * @param {Set<string>} ctx.stampedStations     station ids the user has stamped
  * @returns {{score: number, reasons: string[]}}
  */
-export function localScore(place, { counts, visitedHoods, stampedStations }) {
+export function localScore(place, { counts, visitedHoods, stampedStations, school = null, popularAtSchool = null }) {
   let score = 0;
   const reasons = [];
-  const add = (points, reason) => {
+  const add = (points, reason, front = false) => {
     score += points;
-    reasons.push(reason);
+    if (front) reasons.unshift(reason);
+    else reasons.push(reason);
   };
 
   // 1. How small is it? One location beats a handful; a handful beats a local chain.
@@ -51,6 +56,14 @@ export function localScore(place, { counts, visitedHoods, stampedStations }) {
 
   // 4. Student budget.
   if (place.price_level != null && place.price_level <= 2) add(1, 'Easy on the wallet');
+
+  // 5. The user's school: close enough to walk, and what its students actually log.
+  if (school) {
+    const away = distanceM(school, place);
+    if (away <= WALKABLE_M) add(2, `${(away / 1609.34).toFixed(1)} mi from ${school.short ?? school.name}`, true);
+    else if (away <= NEAR_M) add(1, `Near ${school.short ?? school.name}`, true);
+    if (popularAtSchool?.has(place.id)) add(2, `Popular with ${school.short ?? school.name} students`, true);
+  }
 
   return { score, reasons };
 }
@@ -75,12 +88,16 @@ function hash(text) {
  * @param {import('./api.js').NeighborhoodProgress[]} input.hoods
  * @param {import('./api.js').StampSummary} input.stamps
  * @param {(id: string) => Promise<import('./api.js').Place>} input.getPlace   to look up live ratings for the finalists
+ * @param {{name: string, lat: number, lng: number}|null} [input.school]   the user's saved school: nearby places score higher
+ * @param {string[]} [input.popularIds]   place ids the school's students log most (from getCampusPopular)
  * @param {number} [input.limit]
  * @returns {Promise<Array<import('./api.js').Place & {score: number, reasons: string[]}>>}
  */
-export async function pickSpotlight({ places, dex, hoods, stamps, getPlace, limit = 3 }) {
+export async function pickSpotlight({ places, dex, hoods, stamps, getPlace, school = null, popularIds = [], limit = 3 }) {
   const logged = new Set(dex.map((e) => e.place_id));
   const ctx = {
+    school,
+    popularAtSchool: new Set(popularIds),
     counts: locationCounts(places),
     visitedHoods: new Set(hoods.filter((h) => h.visited).map((h) => h.id)),
     stampedStations: new Set(Object.keys(stamps.by_station)),

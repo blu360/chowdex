@@ -57,15 +57,16 @@ export default function SearchPanel({ filters, onFilters, layers, onLayers, styl
   const q = query.trim().toLowerCase();
   const results = useMemo(() => {
     if (!q) return null;
+    const away = (p) => (p.lng - campus.center[0]) ** 2 + (p.lat - campus.center[1]) ** 2;
     const by = (key) => (a, b) => rank(key(a), q) - rank(key(b), q);
     const places = data.places
       .filter((p) => p.name.toLowerCase().includes(q) || p.cuisine.replace('_', ' ').includes(q) || cuisineLabel(p.cuisine).toLowerCase().includes(q))
-      .sort(by((p) => p.name))
+      .sort((a, b) => rank(a.name, q) - rank(b.name, q) || (campus ? away(a) - away(b) : 0)) // ties: closest to the user's school first
       .slice(0, 5);
     const stations = data.stations.filter((s) => s.name.toLowerCase().includes(q)).sort(by((s) => s.name)).slice(0, 4);
     const hoods = data.hoods.filter((h) => h.properties.name.toLowerCase().includes(q)).sort(by((h) => h.properties.name)).slice(0, 4);
     return { places, stations, hoods, total: places.length + stations.length + hoods.length };
-  }, [q, data]);
+  }, [q, data, campus?.name]);
 
   const pick = (target) => {
     onPick(target);

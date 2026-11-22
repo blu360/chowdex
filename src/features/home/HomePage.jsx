@@ -189,7 +189,7 @@ export default function HomePage({ version, user, profile, onOpenPet, onGo, onEx
         {/* ---------- Green trips (only the trips the rider chose to log) ---------- */}
         <CampusCard version={version} school={school} signedIn={signedIn} onSetup={onSetup} onExplore={onExplore} />
 
-        <Spotlight version={version} onExplore={onExplore} />
+        <Spotlight version={version} onExplore={onExplore} school={school} />
 
         <NearCampus school={school} onExplore={onExplore} onExploreCampus={onExploreCampus} />
 

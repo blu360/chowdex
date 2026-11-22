@@ -6,6 +6,7 @@ import CommunityRating from './CommunityRating.jsx';
 import DirectionsPanel from './DirectionsPanel.jsx';
 import { placeBlurb } from '../../lib/placeLabels.js';
 import { openStatus, weeklyLines } from '../../lib/hours.js';
+import { distanceM, formatDistance } from '../../lib/onboarding.js';
 
 export function LineChips({ lines }) {
   return (
@@ -35,7 +36,7 @@ function Hours({ text }) {
   );
 }
 
-export default function PlaceCard({ placeId, signedIn, onClose, onDexChange, onSignIn, onRoute, onTripLogged }) {
+export default function PlaceCard({ placeId, signedIn, onClose, onDexChange, onSignIn, onRoute, onTripLogged, school = null }) {
   const [showDirections, setShowDirections] = useState(false);
   const [livePhoto, setLivePhoto] = useState(undefined); // the Google photo: undefined while loading, null if none
   const [place, setPlace] = useState(null);
@@ -153,6 +154,15 @@ export default function PlaceCard({ placeId, signedIn, onClose, onDexChange, onS
           <dl className="facts">
             <dt>Hours</dt>
             <dd><Hours text={place.opening_hours} /></dd>
+            {school && (
+              <>
+                <dt>From campus</dt>
+                <dd>
+                  {formatDistance(distanceM(school, place))} from {school.name}
+                  <span className="muted"> · about {Math.max(1, Math.round(distanceM(school, place) / 80))} min walk</span>
+                </dd>
+              </>
+            )}
             <dt>Nearest T</dt>
             <dd>
               {place.nearest_stop.name} <LineChips lines={place.nearest_stop.lines} />
@@ -179,7 +189,7 @@ export default function PlaceCard({ placeId, signedIn, onClose, onDexChange, onS
               Google Maps
             </a>
           </div>
-          {showDirections && <DirectionsPanel placeId={placeId} onRoute={onRoute ?? (() => {})} onLogged={onTripLogged} />}
+          {showDirections && <DirectionsPanel campus={school} placeId={placeId} onRoute={onRoute ?? (() => {})} onLogged={onTripLogged} />}
 
           <hr />
           {collected ? (

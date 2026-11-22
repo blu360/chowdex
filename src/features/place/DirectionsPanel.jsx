@@ -50,7 +50,7 @@ function Step({ color, time, live, children }) {
  * panel never gets stuck waiting: no answer within a few seconds, or any error, falls back to the station picker.
  * "I took this trip" adds it to their green-trips log, which is entirely their choice.
  */
-export default function DirectionsPanel({ placeId, onRoute, onLogged }) {
+export default function DirectionsPanel({ placeId, onRoute, onLogged, campus = null }) {
   const [stations, setStations] = useState([]);
   const [fromId, setFromId] = useState(loadStation);
   const [point, setPoint] = useState(null); // { lat, lng } once we have the rider's position
@@ -58,6 +58,7 @@ export default function DirectionsPanel({ placeId, onRoute, onLogged }) {
   const [locating, setLocating] = useState(false);
   const [note, setNote] = useState(null); // what went wrong with location, in plain words
   const [useStation, setUseStation] = useState(false);
+  const [fromCampus, setFromCampus] = useState(false); // starting from the user's saved school instead of where they are
   const [route, setRoute] = useState(null);
   const [status, setStatus] = useState('loading');
   const [logged, setLogged] = useState(false);
@@ -159,7 +160,7 @@ export default function DirectionsPanel({ placeId, onRoute, onLogged }) {
   }, []);
 
   // Where the trip starts: the rider's position if we have it, otherwise the chosen station.
-  const origin = useStation || !point ? { stationId: fromId } : point;
+  const origin = fromCampus && campus ? { lat: campus.lat, lng: campus.lng } : useStation || !point ? { stationId: fromId } : point;
   const originKey = locating || !chosen ? null : JSON.stringify(origin);
   const showing = chosen && !locating; // a route is on screen (or loading)
 
@@ -198,7 +199,15 @@ export default function DirectionsPanel({ placeId, onRoute, onLogged }) {
   }, [geojson, status]);
   useEffect(() => () => onRoute(null), []);
 
+  function chooseCampus() {
+    setFromCampus(true);
+    setChosen(true);
+    setUseStation(false);
+    setNote(null);
+  }
+
   function chooseStation(id) {
+    setFromCampus(false);
     setFromId(id);
     setChosen(true);
     setUseStation(true);
@@ -232,10 +241,11 @@ export default function DirectionsPanel({ placeId, onRoute, onLogged }) {
         <p className="muted dir-note">
           Finding where you are… <button className="link" onClick={stopWaiting}>Choose a station instead</button>
         </p>
-      ) : useStation || !chosen ? (
+      ) : (useStation || !chosen) && !(fromCampus && chosen) ? (
         <div className="dir-from">
           {!chosen && <p className="dir-ask">Where are you starting from?</p>}
-          <button className="btn btn-primary dir-locate" onClick={locate}>Use my current location</button>
+          {campus && <button className="btn btn-primary dir-locate" onClick={chooseCampus}>From {campus.name}</button>}
+          <button className={campus ? 'btn dir-locate' : 'btn btn-primary dir-locate'} onClick={() => { setFromCampus(false); locate(); }}>Use my current location</button>
           <label>
             <span>{chosen ? 'Starting from' : 'Or choose a station'}</span>
             <select value={chosen ? fromId : ''} onChange={(e) => chooseStation(e.target.value)}>
@@ -251,8 +261,8 @@ export default function DirectionsPanel({ placeId, onRoute, onLogged }) {
         </div>
       ) : (
         <p className="dir-origin">
-          From <b>your current location</b>
-          <button className="link" onClick={() => setUseStation(true)}>Choose a station instead</button>
+          From <b>{fromCampus && campus ? campus.name : 'your current location'}</b>
+          <button className="link" onClick={() => { setFromCampus(false); setUseStation(true); }}>Choose a station instead</button>
         </p>
       )}
 

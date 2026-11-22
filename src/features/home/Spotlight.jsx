@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getDex, getNeighborhoodProgress, getPlace, getPlaces, getStamps } from '../../lib/api.js';
+import { getCampusPopular, getDex, getNeighborhoodProgress, getPlace, getPlaces, getStamps } from '../../lib/api.js';
 import { Icon } from '../../components/ui.jsx';
 import { titleCase } from '../../lib/game.js';
 import { pickSpotlight } from '../../lib/spotlight.js';
@@ -9,20 +9,22 @@ import { cuisineLabel } from '../../lib/placeLabels.js';
  * Local spotlight: three small, local places the user has not tried yet, each with the reasons it
  * was picked. The picks change daily. How places are scored is in src/lib/spotlight.js.
  */
-export default function Spotlight({ version, onExplore }) {
+export default function Spotlight({ version, onExplore, school = null }) {
   const [picks, setPicks] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const [places, dex, hoods, stamps] = await Promise.all([getPlaces(), getDex(), getNeighborhoodProgress(), getStamps()]);
-      const chosen = await pickSpotlight({ places, dex, hoods, stamps, getPlace });
+      // What the user's school logs most (a failure here just means no "popular at your school" boost).
+      const popular = school ? await getCampusPopular(school.id, { limit: 10 }).catch(() => []) : [];
+      const chosen = await pickSpotlight({ places, dex, hoods, stamps, getPlace, school, popularIds: popular.map((r) => r.place_id) });
       if (!cancelled) setPicks(chosen);
     })().catch(() => !cancelled && setPicks([]));
     return () => {
       cancelled = true;
     };
-  }, [version]);
+  }, [version, school?.id]);
 
   if (!picks || picks.length === 0) return null;
 
@@ -45,7 +47,7 @@ export default function Spotlight({ version, onExplore }) {
                   {p.details?.rating != null ? ` · ★ ${p.details.rating.toFixed(1)}` : ''}
                 </small>
                 <span className="spot-why">
-                  {p.reasons.slice(0, 3).map((r) => <i key={r}>{r}</i>)}
+                  {p.reasons.slice(0, 4).map((r) => <i key={r}>{r}</i>)}
                 </span>
               </span>
               <Icon name="next" size={16} />

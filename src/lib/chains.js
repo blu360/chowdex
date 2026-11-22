@@ -87,7 +87,14 @@ export function isLocalFavorite(name) {
 }
 
 /**
- * Should this place be left out?
+ * School dining halls and cafeterias are not places a person chooses to go and try, and most are closed to the public,
+ * so they are left out like chains. Matches "Warren Towers Dining Hall", "Corcoran Commons", "Student Dining Center".
+ */
+const INSTITUTIONAL = /\b(dining\s+(hall|commons|center|centre)|cafeteria|dining\s+services)\b|\bcommons$/;
+export const isDiningHall = (name) => INSTITUTIONAL.test(normalizeName(name));
+
+/**
+ * Should this place be left out? (Big chains, and school dining halls.)
  * @param {string} name
  * @param {{brandWikidata?: string|null}} [osm]  when known (seed time): OpenStreetMap's `brand:wikidata` tag,
  *        which mappers put on branches of recognized brands. With it, chains missing from BIG_CHAINS are caught too.
@@ -95,6 +102,7 @@ export function isLocalFavorite(name) {
 export function isBigChain(name, { brandWikidata = null } = {}) {
   const n = normalizeName(name);
   if (!n) return false;
+  if (isDiningHall(name)) return true;
   if (inLocalFavorites(n)) return false;
   if (inBigChains(n)) return true;
   return Boolean(brandWikidata);

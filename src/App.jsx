@@ -384,6 +384,7 @@ export default function App() {
                 onSignIn={onSignIn}
                 onRoute={setDirectionsRoute}
                 onTripLogged={bump}
+                school={school}
               />
             )}
             {selected?.type === 'station' && (
