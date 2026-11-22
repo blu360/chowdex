@@ -1,6 +1,6 @@
 # Chowdex
 
-![Chowdex](public/thumbnail.png)
+![Chowdex](public/banner.png)
 
 Find local food in Boston by T line. Log places to your dex, stamp stations, and collect a pet in every neighborhood. Built for BostonHacks ("Bos(tons) of Eats and Streets").
 
