@@ -30,6 +30,26 @@ function SearchIcon() {
   );
 }
 
+function ChevronIcon({ up }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={up ? 'm6 15 6-6 6 6' : 'm6 9 6 6 6-6'} />
+    </svg>
+  );
+}
+
+const COMPACT_KEY = 'chowdex.searchCompact';
+/** Remembers whether the user collapsed the filters; phones start collapsed so the map has room. */
+function loadCompact() {
+  try {
+    const saved = localStorage.getItem(COMPACT_KEY);
+    if (saved !== null) return saved === '1';
+  } catch {
+    // storage unavailable: use the default
+  }
+  return window.innerWidth < 800;
+}
+
 function LayersIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -42,6 +62,7 @@ export default function SearchPanel({ filters, onFilters, layers, onLayers, styl
   const [query, setQuery] = useState('');
   const [focused, setFocused] = useState(false);
   const [layersOpen, setLayersOpen] = useState(false);
+  const [compact, setCompact] = useState(loadCompact); // only the search bar is shown, filters are tucked away
   const [data, setData] = useState({ places: [], stations: [], hoods: [] });
 
   useEffect(() => {
@@ -100,6 +121,16 @@ export default function SearchPanel({ filters, onFilters, layers, onLayers, styl
     onFilters({ ...filters, bounds: campus.box });
     onPick({ type: 'campus', center: campus.center }); // close enough that the restaurant dots are visible
   };
+  const toggleCompact = () => {
+    const next = !compact;
+    setCompact(next);
+    if (next) setLayersOpen(false);
+    try {
+      localStorage.setItem(COMPACT_KEY, next ? '1' : '0');
+    } catch {
+      // not remembered, still applied
+    }
+  };
   const toggle = (key, value) => onFilters({ ...filters, [key]: filters[key] === value ? undefined : value });
 
   const trainsText = !trainsInfo
@@ -128,6 +159,16 @@ export default function SearchPanel({ filters, onFilters, layers, onLayers, styl
             <button className="clear" onClick={() => setQuery('')} aria-label="Clear search">×</button>
           )}
         </div>
+        <button
+          className="icon-btn has-badge"
+          onClick={toggleCompact}
+          aria-expanded={!compact}
+          aria-label={compact ? 'Show filters' : 'Hide filters'}
+          title={compact ? 'Show filters' : 'Hide filters'}
+        >
+          <ChevronIcon up={!compact} />
+          {compact && activeCount > 0 && <span className="badge" aria-label={`${activeCount} filters on`}>{activeCount}</span>}
+        </button>
         <button
           className={layersOpen ? 'icon-btn on' : 'icon-btn'}
           onClick={() => setLayersOpen((o) => !o)}
@@ -183,6 +224,7 @@ export default function SearchPanel({ filters, onFilters, layers, onLayers, styl
         </div>
       )}
 
+      {!compact && (
       <div className="chip-row" aria-label="Filters">
         <button className={filters.openLate ? 'chip-btn on' : 'chip-btn'} onClick={() => toggle('openLate', true)}>
           Open late
@@ -214,6 +256,7 @@ export default function SearchPanel({ filters, onFilters, layers, onLayers, styl
           ))}
         </div>
       </div>
+      )}
 
       {layersOpen && (
         <div className="layers-panel">

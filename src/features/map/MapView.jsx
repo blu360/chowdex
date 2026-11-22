@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Map as MapLibreMap, NavigationControl, Popup, setWorkerUrl } from 'maplibre-gl';
+import { Map as MapLibreMap, Marker, NavigationControl, Popup, setWorkerUrl } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import {
@@ -49,12 +49,38 @@ const stationsGeoJSON = (stations, stampedById, lineColors) => ({
   })),
 });
 
+/** A small hand-drawn star for niche places, drawn once as an image the map can use. Gold, or blue once it is in the dex. */
+function starImage(fill, outline) {
+  const size = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const g = canvas.getContext('2d');
+  g.translate(size / 2, size / 2 + 2);
+  g.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 === 0 ? 27 : 12;
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    g[i === 0 ? 'moveTo' : 'lineTo'](Math.cos(a) * r, Math.sin(a) * r);
+  }
+  g.closePath();
+  g.lineJoin = 'round';
+  g.lineWidth = 5;
+  g.strokeStyle = outline;
+  g.stroke();
+  g.fillStyle = fill;
+  g.fill();
+  return g.getImageData(0, 0, size, size);
+}
+/** Niche places are drawn as stars, so the dot layer skips them. */
+const NOT_NICHE = ['!=', ['get', 'niche'], 1];
+
 const placesGeoJSON = (places, collected) => ({
   type: 'FeatureCollection',
   features: places.map((p) => ({
     type: 'Feature',
     geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
-    properties: { id: p.id, name: p.name, collected: collected.has(p.id) ? 1 : 0 },
+    properties: { id: p.id, name: p.name, collected: collected.has(p.id) ? 1 : 0, niche: p.niche ? 1 : 0 },
   })),
 });
 
@@ -282,6 +308,7 @@ function installLayers(map, { data, dark, layers }) {
     type: 'circle',
     source: 'places',
     layout: { 'circle-sort-key': ['get', 'collected'] }, // dex places draw on top
+    filter: NOT_NICHE,
     minzoom: PLACE_MIN_ZOOM,
     paint: {
       // Light dots with a warm ring are easier on the eyes than solid dark ones when a block is full of them.
@@ -291,6 +318,23 @@ function installLayers(map, { data, dark, layers }) {
       'circle-stroke-color': ['case', collected, dark ? '#dbe7fb' : INK, dark ? '#f0a875' : PLACE_RING],
       'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 13, 1.5, 16, 2.5],
       'circle-opacity': ['case', collected, 1, 0.95],
+    },
+  });
+  // Niche places: a star instead of a dot (see src/lib/niche.js for what counts).
+  if (!map.hasImage('place-star')) map.addImage('place-star', starImage('#ffd23f', dark ? '#f0a875' : '#7a4a00'), { pixelRatio: 2 });
+  if (!map.hasImage('place-star-done')) map.addImage('place-star-done', starImage(ACCENT, dark ? '#dbe7fb' : INK), { pixelRatio: 2 });
+  map.addLayer({
+    id: 'place-stars',
+    type: 'symbol',
+    source: 'places',
+    filter: ['==', ['get', 'niche'], 1],
+    minzoom: PLACE_MIN_ZOOM,
+    layout: {
+      'icon-image': ['case', collected, 'place-star-done', 'place-star'],
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 13, 0.55, 15, 0.8, 17, 1.05],
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+      'symbol-sort-key': ['get', 'collected'],
     },
   });
   map.addLayer({
@@ -334,10 +378,106 @@ export default function MapView({
   const hoveredRef = useRef(null);
   const appliedStyleRef = useRef(styleId);
   const [ready, setReady] = useState(false);
+  const [locationNote, setLocationNote] = useState(null); // a plain-words message when "show my location" does not work
+  const noteTimer = useRef(null);
 
   // Latest props, readable from map event handlers that outlive a render.
   const latest = useRef({});
   latest.current = { styleId, layers, onSelectPlace, onSelectStation, onTrainsInfo, journey };
+
+  /**
+   * The "show my location" button. The browser only asks when it is tapped, never on its own, and it always answers:
+   * a dot on the map, or a plain-words note. The position is used in the browser only and is not sent anywhere.
+   */
+  function createLocateControl() {
+    const say = (text) => {
+      setLocationNote(text);
+      clearTimeout(noteTimer.current);
+      if (text) noteTimer.current = setTimeout(() => setLocationNote(null), 7000);
+    };
+    let button = null;
+    let map = null;
+    let dot = null;
+    let giveUp = null;
+    const finish = () => {
+      clearTimeout(giveUp);
+      button?.classList.remove('busy');
+    };
+    const locate = () => {
+      if (button.classList.contains('busy')) return;
+      say(null);
+      if (!window.isSecureContext || !navigator.geolocation) {
+        say("This browser can't share your location here.");
+        return;
+      }
+      button.classList.add('busy');
+      // Some browsers never answer if the prompt is ignored, so stop waiting after a while.
+      giveUp = setTimeout(() => {
+        finish();
+        say('Location is taking too long. Check that location is allowed for this site, then try again.');
+      }, 15000);
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          finish();
+          const { latitude, longitude } = pos.coords;
+          const km = Math.hypot((longitude - DEFAULT_VIEW.center[0]) * 82.4, (latitude - DEFAULT_VIEW.center[1]) * 111.2);
+          if (km > 40) {
+            say("You're outside the Boston area, so the map can't show where you are.");
+            return;
+          }
+          if (!dot) {
+            const el = document.createElement('div');
+            el.className = 'me-dot';
+            el.title = 'You are here';
+            dot = new Marker({ element: el }).setLngLat([longitude, latitude]).addTo(map);
+          } else dot.setLngLat([longitude, latitude]);
+          const wide = window.innerWidth > 800;
+          map.flyTo({
+            center: [longitude, latitude],
+            zoom: Math.max(map.getZoom(), 14.5),
+            padding: { top: 40, bottom: wide ? 40 : 40, left: wide ? 400 : 40, right: wide ? 380 : 40 },
+            duration: 900,
+            essential: true,
+          });
+        },
+        (err) => {
+          finish();
+          say(
+            {
+              1: "Location is blocked for this site. Allow it in your browser's site settings to see where you are.",
+              2: "Your device couldn't work out where you are. Try again in a moment.",
+              3: 'Finding your location took too long. Try again.',
+            }[err?.code] ?? "Couldn't get your location.",
+          );
+        },
+        { enableHighAccuracy: false, timeout: 12000, maximumAge: 120000 },
+      );
+    };
+    return {
+      onAdd(m) {
+        map = m;
+        const box = document.createElement('div');
+        box.className = 'maplibregl-ctrl maplibregl-ctrl-group';
+        button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'locate-btn';
+        button.title = 'Show my location';
+        button.setAttribute('aria-label', 'Show my location');
+        button.innerHTML =
+          '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>';
+        button.addEventListener('click', locate);
+        box.appendChild(button);
+        return box;
+      },
+      onRemove() {
+        finish();
+        dot?.remove();
+        button?.parentNode?.remove();
+      },
+    };
+  }
+
+  useEffect(() => () => clearTimeout(noteTimer.current), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -366,6 +506,7 @@ export default function MapView({
       mapRef.current = map;
       if (import.meta.env.DEV) window.__chowdexMap = map; // handy for debugging in the browser console
       map.addControl(new NavigationControl({ showCompass: false }), 'bottom-right');
+      if (!latest.current.journey) map.addControl(createLocateControl(), 'bottom-right');
       map.on('error', (e) => console.warn('Map:', e.error?.message ?? e));
 
       // Runs for the first basemap and again after every basemap switch.
@@ -383,13 +524,13 @@ export default function MapView({
 
       const tip = new Popup({ closeButton: false, closeOnClick: false, offset: 12, className: 'hover-tip' });
       let tipKey = null;
-      const interactive = ['places', 'stations', 'trains'];
+      const interactive = ['places', 'place-stars', 'stations', 'trains'];
       const hit = (point) =>
         map.queryRenderedFeatures(point, { layers: interactive.filter((l) => map.getLayer(l)) });
 
       map.on('click', (e) => {
         const features = hit(e.point);
-        const place = features.find((f) => f.layer.id === 'places');
+        const place = features.find((f) => f.layer.id === 'places' || f.layer.id === 'place-stars');
         const station = features.find((f) => f.layer.id === 'stations');
         if (place) latest.current.onSelectPlace(place.properties.id);
         else if (station) latest.current.onSelectStation(station.properties.id);
@@ -618,10 +759,11 @@ export default function MapView({
       if (map.getLayer(id)) map.setPaintProperty(id, 'line-opacity', ['case', ['in', ['get', 'id'], ['literal', hoodIds]], ['case', ['==', ['get', 'pass'], 2], 0.55, 1], 0.25]);
     }
     const only = placeIds ? ['in', ['get', 'id'], ['literal', placeIds]] : ['==', ['get', 'collected'], 1];
-    for (const id of ['places', 'place-labels']) {
+    for (const id of ['places', 'place-stars', 'place-labels']) {
       if (!map.getLayer(id)) continue;
-      map.setFilter(id, only);
-      if (id === 'places') map.setLayerZoomRange(id, 0, 24);
+      // keep each layer's own niche/not-niche split while narrowing to the journey's places
+      map.setFilter(id, id === 'places' ? ['all', only, NOT_NICHE] : id === 'place-stars' ? ['all', only, ['==', ['get', 'niche'], 1]] : only);
+      if (id !== 'place-labels') map.setLayerZoomRange(id, 0, 24);
     }
     return () => clearTimeout(creditsTimer);
   }, [ready, journeyKey]);
@@ -666,6 +808,7 @@ export default function MapView({
   return (
     <div className="map-wrap">
       <div ref={containerRef} className="map" />
+      {locationNote && <p className="map-note" role="status">{locationNote}</p>}
     </div>
   );
 }

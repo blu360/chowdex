@@ -18,6 +18,7 @@ export default function Legend() {
           <section>
             <h4>Eats</h4>
             <p><i className="sym sym-place" /> Restaurant (zoom in)</p>
+            <p><i className="sym sym-star" /> Local discovery</p>
             <p><i className="sym sym-collected" /> In your dex</p>
           </section>
           <section>

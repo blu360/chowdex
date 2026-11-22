@@ -9,7 +9,8 @@
  */
 import { PET_LEVEL_XP, PET_MAX_LEVEL, petLevelFromXp } from './mock/petEngine.js';
 import { arrivalsQuery, parseArrivals } from './mbtaLive.js';
-import { isBigChain } from './chains.js';
+import { isBigChain, locationCounts, normalizeName } from './chains.js';
+import { isNiche } from './niche.js';
 import { estimatePriceLevel } from './priceEstimate.js';
 
 const BUCKET = 'dex-photos';
@@ -141,7 +142,7 @@ export function createSupabaseApi({ apiError, levelFromXp, tierFromPercent, dail
         const fresh = r.rating != null && r.rating_fetched_at && Date.now() - new Date(r.rating_fetched_at).getTime() < RATING_MAX_AGE_MS;
         if (fresh) ratingsById.set(r.id, { rating: Number(r.rating), rating_count: r.rating_count ?? null });
       }
-      return rows.map((r) => ({
+      const list = rows.map((r) => ({
         id: r.id,
         name: r.name,
         lat: r.lat,
@@ -156,7 +157,14 @@ export function createSupabaseApi({ apiError, levelFromXp, tierFromPercent, dail
           ? { id: r.stop.id, name: r.stop.name, lines: r.stop.lines, distance_m: r.nearest_stop_distance_m }
           : null,
         neighborhood: hoodRef(r.neighborhood_id),
+        niche: false, // set below
       }));
+      // Niche places get a star on the map (criteria in niche.js). Counting locations ignores chains, which are hidden.
+      const counts = locationCounts(list.filter((p) => !isBigChain(p.name)));
+      for (const p of list) {
+        if (!isBigChain(p.name)) p.niche = isNiche(p, { locations: counts.get(normalizeName(p.name)) ?? 1, ...ratingsById.get(p.id) });
+      }
+      return list;
     })().catch((err) => {
       placesPromise = undefined; // let the next call retry
       throw err;
