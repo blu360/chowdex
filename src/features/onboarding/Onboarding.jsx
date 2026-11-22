@@ -10,6 +10,9 @@ import { SCHOOLS } from './schools.js';
 
 const STEPS = 4;
 const NEARBY_SHOWN = 8; // places offered in "have you been here?"
+/** "Nearby" means within a mile of the school or neighborhood: about a 20 minute walk. */
+const NEARBY_RADIUS_M = 1609.34;
+const FALLBACK_SHOWN = 3; // if nothing is within a mile, show this many of the closest places
 /**
  * How many past visits can be claimed during setup. Deliberately small: a couple of places gives a
  * new user a pet or two and their first badge right away, without handing out the bigger badges
@@ -78,7 +81,11 @@ export default function Onboarding({ user, onClose, onDexChange, onExplore }) {
       .map((p) => ({ ...p, away: distanceM(anchor, p) }))
       .sort((a, b) => a.away - b.away);
   }, [anchor, data]);
-  const nearby = byDistance.filter((p) => !logged.has(p.id)).slice(0, NEARBY_SHOWN);
+  // Places they have not logged, within a mile. If there are none, fall back to the few closest and say so.
+  const unlogged = byDistance.filter((p) => !logged.has(p.id));
+  const withinMile = unlogged.filter((p) => p.away <= NEARBY_RADIUS_M);
+  const farOnly = withinMile.length === 0 && unlogged.length > 0;
+  const nearby = farOnly ? unlogged.slice(0, FALLBACK_SHOWN) : withinMile.slice(0, NEARBY_SHOWN);
 
   // Step 4: the best local picks among the closest places they have not logged.
   const recommended = useMemo(() => {
@@ -88,9 +95,9 @@ export default function Onboarding({ user, onClose, onDexChange, onExplore }) {
       visitedHoods: new Set(data.hoods.filter((h) => h.visited).map((h) => h.id)),
       stampedStations: new Set(Object.keys(data.stamps.by_station)),
     };
-    return byDistance
-      .filter((p) => !logged.has(p.id))
-      .slice(0, 24)
+    const open = byDistance.filter((p) => !logged.has(p.id));
+    const close = open.filter((p) => p.away <= NEARBY_RADIUS_M);
+    return (close.length ? close : open.slice(0, FALLBACK_SHOWN))
       .map((p) => ({ ...p, ...localScore(p, ctx) }))
       .sort((a, b) => b.score - a.score || a.away - b.away)
       .slice(0, RECOMMENDED);
@@ -217,6 +224,9 @@ export default function Onboarding({ user, onClose, onDexChange, onExplore }) {
           <div className="onboard-body">
             <h2 id="onboard-title">Been to any of these near {anchor?.label}?</h2>
             <p className="muted">
+              {farOnly
+                ? 'Nothing is listed within a mile yet, so these are the closest. '
+                : 'These are within a mile. '}
               Pick up to {MAX_BEEN}. Each one goes in your dex, and the pet from its neighborhood joins you.
             </p>
             <ul className="onboard-list">
@@ -253,7 +263,11 @@ export default function Onboarding({ user, onClose, onDexChange, onExplore }) {
                 </p>
               </div>
             )}
-            <p className="muted">Small, local places close to {anchor?.label} that you haven't logged.</p>
+            <p className="muted">
+              {recommended.some((p) => p.away <= NEARBY_RADIUS_M)
+                ? `Small, local places within a mile of ${anchor?.label} that you haven't logged.`
+                : `Nothing is listed within a mile of ${anchor?.label} yet, so these are the closest.`}
+            </p>
             <ul className="spot-list">
               {recommended.map((p) => (
                 <li key={p.id}>
